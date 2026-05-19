@@ -71,11 +71,18 @@ def main():
         
     # Schedule mode
     print("🕰️ Starting daily scheduler mode...")
-    print("📅 Screener is scheduled to run every day at 20:00 KST.")
+    
+    # Calculate local system time corresponding to 20:00 KST
+    kst_tz = datetime.timezone(datetime.timedelta(hours=9))
+    kst_target = datetime.datetime.combine(datetime.date.today(), datetime.time(20, 0)).replace(tzinfo=kst_tz)
+    local_target = kst_target.astimezone()
+    local_time_str = local_target.strftime("%H:%M")
+    
+    print(f"📅 Screener is scheduled to run every day at 20:00 KST (System Local Time: {local_time_str}).")
     print("👉 Use Ctrl+C to terminate.")
     
-    # Schedule daily at 20:00 KST
-    schedule.every().day.at("20:00").do(execute_pipeline)
+    # Schedule daily at system local time equivalent to 20:00 KST
+    schedule.every().day.at(local_time_str).do(execute_pipeline)
     
     # Keep the script running
     try:
