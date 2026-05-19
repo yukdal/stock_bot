@@ -1,0 +1,90 @@
+import os
+import sys
+import argparse
+import datetime
+import time
+import schedule
+from pathlib import Path
+from config import validate_config
+from quant_filter import run_quant_filtering
+from report_generator import generate_report
+from notifier import send_telegram_message
+
+BASE_DIR = Path(__file__).resolve().parent
+REPORTS_DIR = BASE_DIR / "reports"
+REPORTS_DIR.mkdir(exist_ok=True)
+
+def execute_pipeline():
+    """
+    Core pipeline:
+    1. Check if today is weekend (skip if Saturday or Sunday)
+    2. Quant filtering
+    3. Gemini report generation
+    4. Save report locally
+    5. Send Telegram notification
+    """
+    today = datetime.date.today()
+    print(f"\n🔔 [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting Screener Pipeline...")
+    
+    # Skip weekends in standard run
+    if today.weekday() >= 5:
+        print("📅 Today is a weekend. The Korean stock market is closed. Skipping run.")
+        return
+        
+    try:
+        # 1. Run Quantitative and DART Financial Filters
+        filtered_stocks = run_quant_filtering()
+        
+        # 2. Generate Analyst Report
+        report_text = generate_report(filtered_stocks)
+        
+        # 3. Save Report Locally
+        date_str = today.strftime("%Y%m%d")
+        report_path = REPORTS_DIR / f"report_{date_str}.md"
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(report_text)
+        print(f"💾 Report saved locally to {report_path}")
+        
+        # 4. Dispatch Telegram Notification
+        send_telegram_message(report_text)
+        print("🎉 Screener pipeline run finished successfully!")
+        
+    except Exception as e:
+        print(f"❌ Error occurred during pipeline execution: {e}")
+
+def main():
+    parser = argparse.ArgumentParser(description="K-Stock Quant & DART Swing Screener")
+    parser.add_argument(
+        "--now",
+        action="store_true",
+        help="Run the screening pipeline immediately and exit."
+    )
+    args = parser.parse_args()
+    
+    # Validate .env config
+    validate_config(test_mode=True)
+    
+    if args.now:
+        print("🏃 Running manual one-off execution...")
+        execute_pipeline()
+        sys.exit(0)
+        
+    # Schedule mode
+    print("🕰️ Starting daily scheduler mode...")
+    print("📅 Screener is scheduled to run every day at 20:00 KST.")
+    print("👉 Use Ctrl+C to terminate.")
+    
+    # Schedule daily at 20:00 KST
+    schedule.every().day.at("20:00").do(execute_pipeline)
+    
+    # Keep the script running
+    try:
+        while True:
+            schedule.run_pending()
+            time.sleep(10)
+    except KeyboardInterrupt:
+        print("\n👋 Scheduler terminated by user.")
+        sys.exit(0)
+
+if __name__ == "__main__":
+    main()

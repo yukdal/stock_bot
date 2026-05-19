@@ -1,0 +1,27 @@
+# Private environment variables containing credentials
+.env
+
+# Local caching directory (DART mappings etc)
+.cache/
+
+# Local diagnostic logs
+logs/
+*.log
+
+# Generated reports history
+reports/
+
+# Python caching and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Operating system files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE configurations
+.vscode/
+.idea/

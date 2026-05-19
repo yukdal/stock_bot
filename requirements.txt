@@ -1,0 +1,9 @@
+pykrx
+pandas
+requests
+beautifulsoup4
+lxml
+yfinance
+google-genai
+schedule
+python-dotenv
