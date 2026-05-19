@@ -254,7 +254,19 @@ def fetch_naver_sector_and_news(ticker):
                     title = cells[0]
                     source = cells[1]
                     date = cells[2]
-                    link = "https://finance.naver.com" + links[0]
+                    raw_link = links[0]
+                    
+                    # Parse query parameters to build a direct link and bypass JavaScript redirection
+                    parsed_url = urllib.parse.urlparse(raw_link)
+                    query_params = urllib.parse.parse_qs(parsed_url.query)
+                    article_id_list = query_params.get("article_id")
+                    office_id_list = query_params.get("office_id")
+                    
+                    if article_id_list and office_id_list:
+                        link = f"https://n.news.naver.com/mnews/article/{office_id_list[0]}/{article_id_list[0]}"
+                    else:
+                        link = "https://finance.naver.com" + raw_link
+                        
                     news_items.append({
                         "title": title,
                         "source": source,
