@@ -126,19 +126,45 @@ def run_quant_filtering():
                 print(f"❌ {name} excluded: Net income is not positive for 3 consecutive years (Y0:{ni_0:+,}, Y1:{ni_1:+,}, Y2:{ni_2:+,})")
                 continue
                 
-            # Verify debt condition (liabilities < equity)
-            liab = financials.get("liabilities")
-            eq = financials.get("equity")
+            # Verify debt vs retention conditions for 3 years
+            liab_0 = financials.get("liabilities_y0")
+            liab_1 = financials.get("liabilities_y1")
+            liab_2 = financials.get("liabilities_y2")
             
-            if liab is None or eq is None:
-                print(f"⚠️ Missing liabilities/equity data for {name} (Liab:{liab}, Eq:{eq}). Skipping.")
+            eq_0 = financials.get("equity_y0")
+            eq_1 = financials.get("equity_y1")
+            eq_2 = financials.get("equity_y2")
+            
+            cap_0 = financials.get("capital_stock_y0")
+            cap_1 = financials.get("capital_stock_y1")
+            cap_2 = financials.get("capital_stock_y2")
+            
+            if None in [liab_0, liab_1, liab_2, eq_0, eq_1, eq_2, cap_0, cap_1, cap_2]:
+                print(f"⚠️ Missing liabilities/equity/capital stock data for {name}. Skipping.")
                 continue
                 
-            if liab >= eq:
-                print(f"❌ {name} excluded: Liabilities ({liab:+,}) >= Equity ({eq:+,})")
+            # Calculate ratios (%)
+            debt_ratio_0 = (liab_0 / eq_0 * 100) if eq_0 > 0 else 0
+            debt_ratio_1 = (liab_1 / eq_1 * 100) if eq_1 > 0 else 0
+            debt_ratio_2 = (liab_2 / eq_2 * 100) if eq_2 > 0 else 0
+            
+            reserve_ratio_0 = ((eq_0 - cap_0) / cap_0 * 100) if cap_0 > 0 else 0
+            reserve_ratio_1 = ((eq_1 - cap_1) / cap_1 * 100) if cap_1 > 0 else 0
+            reserve_ratio_2 = ((eq_2 - cap_2) / cap_2 * 100) if cap_2 > 0 else 0
+            
+            # Check condition: 부채비율 < 유보율 for all 3 years
+            cond_0 = debt_ratio_0 < reserve_ratio_0
+            cond_1 = debt_ratio_1 < reserve_ratio_1
+            cond_2 = debt_ratio_2 < reserve_ratio_2
+            
+            if not (cond_0 and cond_1 and cond_2):
+                print(f"❌ {name} excluded: Debt ratio >= Retention rate in one of the 3 years.")
+                print(f"   -> Y0 (Debt: {debt_ratio_0:.1f}% vs Reserve: {reserve_ratio_0:.1f}%)")
+                print(f"   -> Y1 (Debt: {debt_ratio_1:.1f}% vs Reserve: {reserve_ratio_1:.1f}%)")
+                print(f"   -> Y2 (Debt: {debt_ratio_2:.1f}% vs Reserve: {reserve_ratio_2:.1f}%)")
                 continue
                 
-            print(f"✅ {name} passed DART checks!")
+            print(f"✅ {name} passed DART checks (3y net income and debt < retention)!")
             
             # 5. Fetch Supply/Demand & News
             # Fetch mobile integration data for investor trend
@@ -179,8 +205,10 @@ def run_quant_filtering():
                 "alignment": alignment_status,
                 "volume_ratio": volume_ratio,
                 "net_income_3y": [ni_0, ni_1, ni_2],
-                "liabilities": liab,
-                "equity": eq,
+                "liabilities": liab_0,
+                "equity": eq_0,
+                "debt_ratios_3y": [debt_ratio_0, debt_ratio_1, debt_ratio_2],
+                "reserve_ratios_3y": [reserve_ratio_0, reserve_ratio_1, reserve_ratio_2],
                 "supply_demand": {
                     "foreigner_qty": foreigner_qty,
                     "foreigner_val": foreigner_val,

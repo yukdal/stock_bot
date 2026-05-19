@@ -33,6 +33,8 @@ def build_prompt(filtered_stocks):
   * 20일 평균 거래량 대비 당일 거래량 비율: {s['volume_ratio']:.1f}%
 - 재무 지표 (DART):
   * 최근 3개년 당기순이익 (Y0, Y1, Y2): {[f"{val:+,}원" for val in s['net_income_3y']]}
+  * 최근 3개년 부채비율 (Y0, Y1, Y2): {[f"{val:.1f}%" for val in s['debt_ratios_3y']]}
+  * 최근 3개년 유보율 (Y0, Y1, Y2): {[f"{val:.1f}%" for val in s['reserve_ratios_3y']]}
   * 부채총계: {s['liabilities']:+,}원
   * 자본총계: {s['equity']:+,}원
 - 당일 수급: {sd_str}
@@ -56,7 +58,7 @@ def build_prompt(filtered_stocks):
      * **테마/상승 사유**: 업종 및 최신 뉴스를 분석하여 주가가 오늘 급등한 구체적인 원인(핵심 재료 및 호재)을 설명해주세요. 뉴스 헤드라인과 출처를 결합하여 분석을 풍성하게 해주세요.
      * **거래 규모**: 당일 거래량 및 **당일 거래대금**(원화 및 '억 원' 단위 환산 표기)을 명시해주세요.
      * **수급 분석**: 외국인, 기관, 개인의 순매수 경향을 분석하여 유의미한 수급 주체를 명시해주세요. (예: "외국인/기관 양매수 유입 및 개인 매도세")
-     * **기술적/재무적 진단**: 1000일선 위의 위치, 5/20/60 정배열 여부, 거래량 폭발 비율과 3년 연속 흑자 및 안정적인 자본대비 부채비율을 바탕으로 스윙 매매 관점의 종합 평점(A, B, C 등급)과 진단을 내려주세요.
+     * **기술적/재무적 진단**: 1000일선 위의 위치, 5/20/60 정배열 여부, 거래량 폭발 비율과 3년 연속 당기순이익 흑자 및 **3개년 부채비율 vs 유보율 수치 비교**를 바탕으로 스윙 매매 관점의 종합 평점(A, B, C 등급)과 진단을 내려주세요.
 4. **최종 탑픽(Top Pick) 종목**: 분석된 종목 중 스윙 매매 관점에서 가장 유망해 보이는 종목 1-2개를 선정하고 이유를 짤막하게 제시해주세요.
 5. **어조**: 전문가답고, 통찰력 있으며, 가독성이 뛰어난 Markdown 형식으로 한글로 작성해주세요.
 """
@@ -119,7 +121,9 @@ def generate_mock_report(filtered_stocks):
         report += f"- **거래 규모**: 거래량 `{s['volume']:,}주` (대금 약 `{s['approx_value'] / 100000000:.1f}억 원`)\n"
         report += f"- **수급 동향**: 외국인 `{sd['foreigner_qty']:+,}주` | 기관 `{sd['organ_qty']:+,}주` | 개인 `{sd['individual_qty']:+,}주` (주요 매수 주체: **{buyer_str}**)\n"
         report += f"- **기술적 분석**: 1000일선 `{s['price_vs_ma_1000']}`, 이평선 `{s['alignment']}`, 거래량 폭발 비율 `{s['volume_ratio']:.1f}%`\n"
-        report += f"- **재무적 분석 (DART)**: 3개년 연속 흑자 유지 (최근 당기순이익 `{ni_y0:+,}원`), 부채비율 `{debt_ratio:.1f}%`로 매우 건전함\n"
+        debt_str = ", ".join([f"{val:.1f}%" for val in s["debt_ratios_3y"]])
+        reserve_str = ", ".join([f"{val:.1f}%" for val in s["reserve_ratios_3y"]])
+        report += f"- **재무적 분석 (DART)**: 3개년 연속 당기순이익 흑자 유지, 3개년 부채비율(Y0~Y2: `{debt_str}`) vs 유보율(Y0~Y2: `{reserve_str}`) 조건 통과\n"
         report += f"- **스윙 투자 종합 등급**: **{grade}** ({reason_str})\n"
         
         # Add news if any

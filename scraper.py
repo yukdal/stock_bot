@@ -99,9 +99,15 @@ def fetch_dart_financials(api_key, corp_code, year=2025):
             "net_income_y0": None,  # year (e.g. 2025)
             "net_income_y1": None,  # year-1 (e.g. 2024)
             "net_income_y2": None,  # year-2 (e.g. 2023)
-            "liabilities": None,
-            "equity": None,
-            "capital_stock": None
+            "liabilities_y0": None,
+            "liabilities_y1": None,
+            "liabilities_y2": None,
+            "equity_y0": None,
+            "equity_y1": None,
+            "equity_y2": None,
+            "capital_stock_y0": None,
+            "capital_stock_y1": None,
+            "capital_stock_y2": None
         }
         
         # Account name synonyms
@@ -131,15 +137,21 @@ def fetch_dart_financials(api_key, corp_code, year=2025):
                 
             # 2. 부채총계
             elif any(syn.replace(" ", "") == acc_nm for syn in liabilities_synonyms):
-                financials["liabilities"] = parse_amount(item.get("thstrm_amount"))
+                financials["liabilities_y0"] = parse_amount(item.get("thstrm_amount"))
+                financials["liabilities_y1"] = parse_amount(item.get("frmtrm_amount"))
+                financials["liabilities_y2"] = parse_amount(item.get("bfefrmtrm_amount"))
                 
             # 3. 자본총계
             elif any(syn.replace(" ", "") == acc_nm for syn in equity_synonyms):
-                financials["equity"] = parse_amount(item.get("thstrm_amount"))
+                financials["equity_y0"] = parse_amount(item.get("thstrm_amount"))
+                financials["equity_y1"] = parse_amount(item.get("frmtrm_amount"))
+                financials["equity_y2"] = parse_amount(item.get("bfefrmtrm_amount"))
                 
             # 4. 자본금
             elif any(syn.replace(" ", "") == acc_nm for syn in capital_stock_synonyms):
-                financials["capital_stock"] = parse_amount(item.get("thstrm_amount"))
+                financials["capital_stock_y0"] = parse_amount(item.get("thstrm_amount"))
+                financials["capital_stock_y1"] = parse_amount(item.get("frmtrm_amount"))
+                financials["capital_stock_y2"] = parse_amount(item.get("bfefrmtrm_amount"))
                 
         return financials
     except Exception as e:
