@@ -12,6 +12,9 @@ DART_API_KEY = os.getenv("DART_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+KIS_APP_KEY = os.getenv("KIS_APP_KEY")
+KIS_APP_SECRET = os.getenv("KIS_APP_SECRET")
+KIS_ENV = os.getenv("KIS_ENV", "PROD")
 
 # Model Configuration
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -37,6 +40,10 @@ def validate_config(test_mode=False):
         missing.append("TELEGRAM_BOT_TOKEN")
     if not TELEGRAM_CHAT_ID:
         missing.append("TELEGRAM_CHAT_ID")
+    if not KIS_APP_KEY:
+        missing.append("KIS_APP_KEY")
+    if not KIS_APP_SECRET:
+        missing.append("KIS_APP_SECRET")
         
     if missing:
         msg = f"Missing environment variables in .env: {', '.join(missing)}"

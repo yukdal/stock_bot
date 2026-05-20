@@ -1,7 +1,8 @@
 import os
 import datetime
 import pandas as pd
-import yfinance as yf
+import pandas as pd
+from kis_api import fetch_daily_price, fetch_investor_trend
 from scraper import (
     get_corp_code_map,
     fetch_dart_financials,
@@ -86,43 +87,46 @@ def run_quant_filtering():
             "탈락사유": ""
         }
         
-        # Format ticker for yfinance
-        yf_symbol = f"{ticker}.KS" if market == "KOSPI" else f"{ticker}.KQ"
-        print(f"📈 Fetching price history for {name} ({yf_symbol})...")
+        print(f"📈 Fetching price history via KIS API for {name} ({ticker})...")
         
         try:
-            # Fetch 5 years of daily history to ensure we have 1000 trading days
-            ticker_obj = yf.Ticker(yf_symbol)
-            hist = ticker_obj.history(period="5y")
+            # Fetch 1200 days of daily history from KIS API
+            hist_data = fetch_daily_price(ticker)
             
-            if hist.empty or len(hist) < 60:
-                print(f"⚠️ Not enough history for {name} ({len(hist)} days). Skipping.")
+            if not hist_data or len(hist_data) < 60:
+                print(f"⚠️ Not enough history for {name}. Skipping.")
                 log_entry["Status"] = "Failed"
-                log_entry["탈락사유"] = f"과거 데이터 부족 ({len(hist)}일)"
+                log_entry["탈락사유"] = f"과거 데이터 부족"
                 analysis_log.append(log_entry)
                 continue
                 
+            # Convert to DataFrame and reverse to chronological order
+            df = pd.DataFrame(hist_data)
+            df['stck_clpr'] = df['stck_clpr'].astype(float)
+            df['acml_vol'] = df['acml_vol'].astype(float)
+            df = df.iloc[::-1].reset_index(drop=True)
+            
             # Current prices and volumes
-            current_price = hist["Close"].iloc[-1]
-            volume_today = hist["Volume"].iloc[-1]
+            current_price = df["stck_clpr"].iloc[-1]
+            volume_today = df["acml_vol"].iloc[-1]
             
             # Technical Indicators
             # A. 1000-day Moving Average (MA 1000)
             ma_1000 = None
             price_vs_ma_1000 = "N/A"
-            if len(hist) >= 1000:
-                ma_1000 = hist["Close"].tail(1000).mean()
+            if len(df) >= 1000:
+                ma_1000 = df["stck_clpr"].tail(1000).mean()
                 price_vs_ma_1000 = "위 (ABOVE)" if current_price >= ma_1000 else "아래 (BELOW)"
                 
             # B. 5, 20, 60-day Moving Averages alignment (정배열)
-            ma_5 = hist["Close"].rolling(5).mean().iloc[-1]
-            ma_20 = hist["Close"].rolling(20).mean().iloc[-1]
-            ma_60 = hist["Close"].rolling(60).mean().iloc[-1]
+            ma_5 = df["stck_clpr"].rolling(5).mean().iloc[-1]
+            ma_20 = df["stck_clpr"].rolling(20).mean().iloc[-1]
+            ma_60 = df["stck_clpr"].rolling(60).mean().iloc[-1]
             is_aligned = (ma_5 > ma_20 > ma_60)
             alignment_status = "정배열 (Aligned)" if is_aligned else "역배열/혼조 (Non-aligned)"
             
             # C. Volume Explosion (vs 20-day average volume)
-            volume_avg_20 = hist["Volume"].iloc[-21:-1].mean()
+            volume_avg_20 = df["acml_vol"].iloc[-21:-1].mean()
             volume_ratio = (volume_today / volume_avg_20 * 100) if volume_avg_20 > 0 else 0
             
             log_entry["MA1000"] = ma_1000
@@ -228,24 +232,21 @@ def run_quant_filtering():
                 
             print(f"✅ {name} passed DART checks (3y net income and debt < retention)!")
             
-            # 5. Fetch Supply/Demand & News
-            # Fetch mobile integration data for investor trend
-            investor_url = f"https://m.stock.naver.com/api/stock/{ticker}/integration"
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-            
-            r_inv = requests.get(investor_url, headers=headers, timeout=10)
+            # 5. Fetch Supply/Demand via KIS API
+            inv_data = fetch_investor_trend(ticker)
             foreigner_qty = 0
             organ_qty = 0
             individual_qty = 0
             
-            if r_inv.status_code == 200:
-                inv_data = r_inv.json()
-                dt_list = inv_data.get("dealTrendInfos", [])
-                if dt_list:
-                    latest = dt_list[0]
-                    foreigner_qty = int(latest["foreignerPureBuyQuant"].replace(",", ""))
-                    organ_qty = int(latest["organPureBuyQuant"].replace(",", ""))
-                    individual_qty = int(latest["individualPureBuyQuant"].replace(",", ""))
+            if inv_data:
+                fq = inv_data.get("frgn_ntby_qty", "").replace(",", "")
+                oq = inv_data.get("orgn_ntby_qty", "").replace(",", "")
+                iq = inv_data.get("prsn_ntby_qty", "").replace(",", "")
+                
+                # Check if not empty
+                if fq and fq not in ["", "-"]: foreigner_qty = int(fq)
+                if oq and oq not in ["", "-"]: organ_qty = int(oq)
+                if iq and iq not in ["", "-"]: individual_qty = int(iq)
                     
             foreigner_val = foreigner_qty * current_price
             organ_val = organ_qty * current_price
