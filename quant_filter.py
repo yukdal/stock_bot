@@ -173,11 +173,11 @@ def run_quant_filtering():
                 analysis_log.append(log_entry)
                 continue
                 
-            is_net_income_black = (ni_0 > 0 and ni_1 > 0 and ni_2 > 0)
+            is_net_income_black = not (ni_0 < 0 and ni_1 < 0 and ni_2 < 0)
             if not is_net_income_black:
-                print(f"❌ {name} excluded: Net income is not positive for 3 consecutive years (Y0:{ni_0:+,}, Y1:{ni_1:+,}, Y2:{ni_2:+,})")
+                print(f"❌ {name} excluded: Net income is negative for 3 consecutive years (Y0:{ni_0:+,}, Y1:{ni_1:+,}, Y2:{ni_2:+,})")
                 log_entry["Status"] = "Failed"
-                log_entry["탈락사유"] = "3년 연속 흑자 조건 미달"
+                log_entry["탈락사유"] = "3년 연속 적자"
                 analysis_log.append(log_entry)
                 continue
                 

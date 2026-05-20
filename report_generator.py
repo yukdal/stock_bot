@@ -60,7 +60,7 @@ def build_prompt(filtered_stocks):
      * **테마/상승 사유**: 업종 및 최신 뉴스를 분석하여 주가가 오늘 급등한 구체적인 원인(핵심 재료 및 호재)을 설명해주세요. 뉴스 헤드라인과 출처를 결합하여 분석을 풍성하게 해주세요.
      * **거래 규모**: 당일 거래량 및 **당일 거래대금**(원화 및 '억 원' 단위 환산 표기)을 명시해주세요.
      * **수급 분석**: 외국인, 기관, 개인의 순매수 경향을 분석하여 유의미한 수급 주체를 명시해주세요. (예: "외국인/기관 양매수 유입 및 개인 매도세")
-     * **기술적/재무적 진단**: 1000일선 위의 위치, 5/20/60 정배열 여부, 거래량 폭발 비율과 3년 연속 당기순이익 흑자 및 **3개년 부채비율 vs 유보율 수치 비교**를 바탕으로 스윙 매매 관점의 종합 평점(A, B, C 등급)과 진단을 내려주세요.
+     * **기술적/재무적 진단**: 1000일선 위의 위치, 5/20/60 정배열 여부, 거래량 폭발 비율과 **3년 연속 적자가 아님** 및 **3개년 부채비율 vs 유보율 수치 비교**를 바탕으로 스윙 매매 관점의 종합 평점(A, B, C 등급)과 진단을 내려주세요.
 4. **최종 탑픽(Top Pick) 종목**: 분석된 종목 중 스윙 매매 관점에서 가장 유망해 보이는 종목 1-2개를 선정하고 이유를 짤막하게 제시해주세요.
 5. **어조**: 전문가답고, 통찰력 있으며, 가독성이 뛰어난 Markdown 형식으로 한글로 작성해주세요.
 """
@@ -76,7 +76,7 @@ def generate_mock_report(filtered_stocks):
     report = f"# 📈 [스윙 주도주 리포트] {today_str} 마켓 브리핑 & 핵심 종목 분석\n\n"
     
     if not filtered_stocks:
-        report += "오늘 조건(가격 10~30% 상승, 거래대금 100억 이상, DART 3년 흑자 및 부채비율 조건)을 통과한 종목이 없습니다.\n"
+        report += "오늘 조건(가격 10~30% 상승, 거래대금 100억 이상, DART 3년 연속 적자 아님 및 부채비율 조건)을 통과한 종목이 없습니다.\n"
         return report
         
     # Summarize sectors
@@ -86,7 +86,7 @@ def generate_mock_report(filtered_stocks):
     report += "## 📊 시장 요약 (Market Summary)\n"
     report += f"금일 조건에 부합하는 스윙 주도주는 총 **{len(filtered_stocks)}개** 종목이 필터링되었습니다.\n"
     report += f"오늘의 주요 강세 섹터는 **{', '.join(unique_sectors)}**입니다.\n"
-    report += "필터링된 종목들은 3년 연속 당기순이익 흑자 및 자본총계 대비 부채 비율이 안정적인 건전한 재무 상태를 가진 기업들이며, 거래량 폭발을 통해 스윙 매매 진입 후보군으로 분류됩니다.\n\n"
+    report += "필터링된 종목들은 3년 연속 적자가 아니며 자본총계 대비 부채 비율이 안정적인 건전한 재무 상태를 가진 기업들이며, 거래량 폭발을 통해 스윙 매매 진입 후보군으로 분류됩니다.\n\n"
     
     report += "## 🔍 종목별 심층 분석 (Stock Analysis)\n\n"
     
@@ -125,7 +125,7 @@ def generate_mock_report(filtered_stocks):
         report += f"- **기술적 분석**: 1000일선 `{s['price_vs_ma_1000']}`, 이평선 `{s['alignment']}`, 거래량 폭발 비율 `{s['volume_ratio']:.1f}%`\n"
         debt_str = ", ".join([f"{val:.1f}%" for val in s["debt_ratios_3y"]])
         reserve_str = ", ".join([f"{val:.1f}%" for val in s["reserve_ratios_3y"]])
-        report += f"- **재무적 분석 (DART)**: 3개년 연속 당기순이익 흑자 유지, 3개년 부채비율(Y0~Y2: `{debt_str}`) vs 유보율(Y0~Y2: `{reserve_str}`) 조건 통과\n"
+        report += f"- **재무적 분석 (DART)**: 3개년 연속 적자 아님 조건 유지, 3개년 부채비율(Y0~Y2: `{debt_str}`) vs 유보율(Y0~Y2: `{reserve_str}`) 조건 통과\n"
         report += f"- **스윙 투자 종합 등급**: **{grade}** ({reason_str})\n"
         
         # Add news if any
@@ -176,11 +176,13 @@ def generate_report(filtered_stocks, analysis_log=None):
 
     if analysis_log:
         report_text += "\n\n---\n\n### 📝 전체 분석 대상 종목 현황\n\n"
-        report_text += "| 종목명 | 티커 | 상태 | 탈락 사유 |\n"
-        report_text += "| :--- | :--- | :--- | :--- |\n"
+        report_text += "| 종목명 | 티커 | MA1000 위치 | 상태 | 탈락 사유 |\n"
+        report_text += "| :--- | :--- | :--- | :--- | :--- |\n"
         for log in analysis_log:
             status = "✅ 통과" if log.get("Status") == "Passed" else "❌ 탈락"
             reason = log.get("탈락사유", "") if log.get("탈락사유") else "-"
-            report_text += f"| {log.get('종목명', '')} | {log.get('티커', '')} | {status} | {reason} |\n"
+            ma_pos = log.get("MA1000_위치", "N/A")
+            if not ma_pos: ma_pos = "N/A"
+            report_text += f"| {log.get('종목명', '')} | {log.get('티커', '')} | {ma_pos} | {status} | {reason} |\n"
             
     return report_text

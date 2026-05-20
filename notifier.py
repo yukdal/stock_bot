@@ -59,3 +59,35 @@ def send_telegram_message(text):
             success = False
             
     return success
+
+def send_telegram_document(file_path):
+    """
+    Send a document file to the configured Telegram chat.
+    """
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("⚠️ Telegram bot token or chat ID is missing. Skipping document notification.")
+        return False
+        
+    import os
+    if not os.path.exists(file_path):
+        print(f"⚠️ File not found: {file_path}")
+        return False
+        
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+    
+    print(f"Sending document {file_path} to Telegram...")
+    try:
+        with open(file_path, "rb") as f:
+            files = {"document": f}
+            payload = {"chat_id": TELEGRAM_CHAT_ID}
+            r = requests.post(url, data=payload, files=files, timeout=30)
+            
+        if r.status_code == 200:
+            print("✅ Telegram document sent successfully.")
+            return True
+        else:
+            print(f"❌ Telegram document send failed: {r.text}")
+            return False
+    except Exception as e:
+        print(f"❌ Exception sending document to Telegram: {e}")
+        return False

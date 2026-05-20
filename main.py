@@ -9,7 +9,7 @@ from pathlib import Path
 from config import validate_config
 from quant_filter import run_quant_filtering
 from report_generator import generate_report
-from notifier import send_telegram_message
+from notifier import send_telegram_message, send_telegram_document
 
 BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
@@ -37,6 +37,7 @@ def execute_pipeline():
         filtered_stocks, analysis_log = run_quant_filtering()
         
         # Save analysis log to CSV for Notion import
+        csv_path = None
         if analysis_log:
             df_log = pd.DataFrame(analysis_log)
             date_str = today.strftime("%Y%m%d")
@@ -56,6 +57,9 @@ def execute_pipeline():
         
         # 4. Dispatch Telegram Notification
         send_telegram_message(report_text)
+        if csv_path:
+            send_telegram_document(csv_path)
+            
         print("🎉 Screener pipeline run finished successfully!")
         
     except Exception as e:
