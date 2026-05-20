@@ -148,29 +148,39 @@ def generate_mock_report(filtered_stocks):
     report += "\n*본 리포트는 Naver Finance, Google News 및 DART Open API 데이터를 기반으로 시스템에서 자동 취합/생성한 투자 참고용 보고서입니다.*"
     return report
 
-def generate_report(filtered_stocks):
+def generate_report(filtered_stocks, analysis_log=None):
     """
     Generate the complete analyst report using Gemini Pro, falling back to mock report on failure.
     """
     if not filtered_stocks:
-        return generate_mock_report(filtered_stocks)
-        
-    if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY":
+        report_text = generate_mock_report(filtered_stocks)
+    elif not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY":
         print("⚠️ Gemini API key is placeholder. Generating local structured report...")
-        return generate_mock_report(filtered_stocks)
-        
-    try:
-        print(f"🤖 Connecting to Gemini API using model '{GEMINI_MODEL}'...")
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        
-        prompt = build_prompt(filtered_stocks)
-        
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt
-        )
-        print("✅ Gemini report generated successfully!")
-        return response.text
-    except Exception as e:
-        print(f"❌ Gemini generation error: {e}. Falling back to structured local report.")
-        return generate_mock_report(filtered_stocks)
+        report_text = generate_mock_report(filtered_stocks)
+    else:
+        try:
+            print(f"🤖 Connecting to Gemini API using model '{GEMINI_MODEL}'...")
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            
+            prompt = build_prompt(filtered_stocks)
+            
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=prompt
+            )
+            print("✅ Gemini report generated successfully!")
+            report_text = response.text
+        except Exception as e:
+            print(f"❌ Gemini generation error: {e}. Falling back to structured local report.")
+            report_text = generate_mock_report(filtered_stocks)
+
+    if analysis_log:
+        report_text += "\n\n---\n\n### 📝 전체 분석 대상 종목 현황\n\n"
+        report_text += "| 종목명 | 티커 | 상태 | 탈락 사유 |\n"
+        report_text += "| :--- | :--- | :--- | :--- |\n"
+        for log in analysis_log:
+            status = "✅ 통과" if log.get("Status") == "Passed" else "❌ 탈락"
+            reason = log.get("탈락사유", "") if log.get("탈락사유") else "-"
+            report_text += f"| {log.get('종목명', '')} | {log.get('티커', '')} | {status} | {reason} |\n"
+            
+    return report_text

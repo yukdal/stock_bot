@@ -45,7 +45,7 @@ def execute_pipeline():
             print(f"📊 Analysis source data saved locally to {csv_path}")
         
         # 2. Generate Analyst Report
-        report_text = generate_report(filtered_stocks)
+        report_text = generate_report(filtered_stocks, analysis_log)
         
         # 3. Save Report Locally
         date_str = today.strftime("%Y%m%d")
