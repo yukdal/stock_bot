@@ -4,6 +4,7 @@ import argparse
 import datetime
 import time
 import schedule
+import pandas as pd
 from pathlib import Path
 from config import validate_config
 from quant_filter import run_quant_filtering
@@ -33,7 +34,15 @@ def execute_pipeline():
         
     try:
         # 1. Run Quantitative and DART Financial Filters
-        filtered_stocks = run_quant_filtering()
+        filtered_stocks, analysis_log = run_quant_filtering()
+        
+        # Save analysis log to CSV for Notion import
+        if analysis_log:
+            df_log = pd.DataFrame(analysis_log)
+            date_str = today.strftime("%Y%m%d")
+            csv_path = REPORTS_DIR / f"analysis_source_{date_str}.csv"
+            df_log.to_csv(csv_path, index=False, encoding="utf-8-sig")
+            print(f"📊 Analysis source data saved locally to {csv_path}")
         
         # 2. Generate Analyst Report
         report_text = generate_report(filtered_stocks)
