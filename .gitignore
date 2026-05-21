@@ -25,3 +25,6 @@ Desktop.ini
 # IDE configurations
 .vscode/
 .idea/
+
+# Dynamic data
+chat_ids.json

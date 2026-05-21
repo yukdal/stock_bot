@@ -10,6 +10,7 @@ from config import validate_config
 from quant_filter import run_quant_filtering
 from report_generator import generate_report
 from notifier import send_telegram_message, send_telegram_document
+from bot_listener import start_bot_listener
 
 BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
@@ -93,6 +94,9 @@ def main():
     
     print(f"📅 Screener is scheduled to run every day at 20:00 KST (System Local Time: {local_time_str}).")
     print("👉 Use Ctrl+C to terminate.")
+    
+    # Start bot listener thread in the background
+    start_bot_listener(run_callback=execute_pipeline)
     
     # Schedule daily at system local time equivalent to 20:00 KST
     schedule.every().day.at(local_time_str).do(execute_pipeline)

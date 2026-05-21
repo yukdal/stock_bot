@@ -1,13 +1,15 @@
 import requests
-from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+from config import TELEGRAM_BOT_TOKEN
+from chat_manager import get_all_chat_ids
 
 def send_telegram_message(text):
     """
-    Send a message to the configured Telegram chat.
+    Send a message to all configured Telegram chats.
     If the message exceeds 4096 characters, split it into chunks.
     """
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("⚠️ Telegram bot token or chat ID is missing. Skipping notification.")
+    chat_ids = get_all_chat_ids()
+    if not TELEGRAM_BOT_TOKEN or not chat_ids:
+        print("⚠️ Telegram bot token or chat IDs are missing. Skipping notification.")
         return False
         
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -31,41 +33,42 @@ def send_telegram_message(text):
         if current_chunk:
             chunks.append(current_chunk)
             
-    print(f"Sending Telegram notification in {len(chunks)} message(s)...")
-    
     success = True
-    for idx, chunk in enumerate(chunks, 1):
-        payload = {
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": chunk,
-            "parse_mode": "Markdown",
-            "disable_web_page_preview": True
-        }
-        try:
-            r = requests.post(url, json=payload, timeout=15)
-            # If markdown parsing fails (e.g. unclosed asterisks), fall back to plain text
-            if r.status_code != 200:
-                print(f"⚠️ Telegram returned status {r.status_code}. Retrying without Markdown parsing...")
-                payload.pop("parse_mode", None)
+    for chat_id in chat_ids:
+        print(f"Sending Telegram notification to chat {chat_id} in {len(chunks)} message(s)...")
+        for idx, chunk in enumerate(chunks, 1):
+            payload = {
+                "chat_id": chat_id,
+                "text": chunk,
+                "parse_mode": "Markdown",
+                "disable_web_page_preview": True
+            }
+            try:
                 r = requests.post(url, json=payload, timeout=15)
-                
-            if r.status_code == 200:
-                print(f"✅ Telegram message {idx}/{len(chunks)} sent successfully.")
-            else:
-                print(f"❌ Telegram message {idx}/{len(chunks)} failed: {r.text}")
+                # If markdown parsing fails (e.g. unclosed asterisks), fall back to plain text
+                if r.status_code != 200:
+                    print(f"⚠️ Telegram returned status {r.status_code}. Retrying without Markdown parsing...")
+                    payload.pop("parse_mode", None)
+                    r = requests.post(url, json=payload, timeout=15)
+                    
+                if r.status_code == 200:
+                    print(f"✅ Telegram message {idx}/{len(chunks)} sent successfully to {chat_id}.")
+                else:
+                    print(f"❌ Telegram message {idx}/{len(chunks)} to {chat_id} failed: {r.text}")
+                    success = False
+            except Exception as e:
+                print(f"❌ Exception sending to Telegram chat {chat_id}: {e}")
                 success = False
-        except Exception as e:
-            print(f"❌ Exception sending to Telegram: {e}")
-            success = False
             
     return success
 
 def send_telegram_document(file_path):
     """
-    Send a document file to the configured Telegram chat.
+    Send a document file to all configured Telegram chats.
     """
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("⚠️ Telegram bot token or chat ID is missing. Skipping document notification.")
+    chat_ids = get_all_chat_ids()
+    if not TELEGRAM_BOT_TOKEN or not chat_ids:
+        print("⚠️ Telegram bot token or chat IDs are missing. Skipping document notification.")
         return False
         
     import os
@@ -75,19 +78,22 @@ def send_telegram_document(file_path):
         
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
     
-    print(f"Sending document {file_path} to Telegram...")
-    try:
-        with open(file_path, "rb") as f:
-            files = {"document": f}
-            payload = {"chat_id": TELEGRAM_CHAT_ID}
-            r = requests.post(url, data=payload, files=files, timeout=30)
+    success = True
+    for chat_id in chat_ids:
+        print(f"Sending document {file_path} to Telegram chat {chat_id}...")
+        try:
+            with open(file_path, "rb") as f:
+                files = {"document": f}
+                payload = {"chat_id": chat_id}
+                r = requests.post(url, data=payload, files=files, timeout=30)
+                
+            if r.status_code == 200:
+                print(f"✅ Telegram document sent successfully to {chat_id}.")
+            else:
+                print(f"❌ Telegram document send to {chat_id} failed: {r.text}")
+                success = False
+        except Exception as e:
+            print(f"❌ Exception sending document to Telegram chat {chat_id}: {e}")
+            success = False
             
-        if r.status_code == 200:
-            print("✅ Telegram document sent successfully.")
-            return True
-        else:
-            print(f"❌ Telegram document send failed: {r.text}")
-            return False
-    except Exception as e:
-        print(f"❌ Exception sending document to Telegram: {e}")
-        return False
+    return success
