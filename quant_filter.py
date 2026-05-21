@@ -87,6 +87,102 @@ def run_quant_filtering():
             "탈락사유": ""
         }
         
+        # 3. Check DART Financials
+        if ticker not in corp_map:
+            print(f"⚠️ {name} ({ticker}) not found in DART corporate map. Skipping due to missing financials.")
+            log_entry["Status"] = "Failed"
+            log_entry["탈락사유"] = "DART 기업코드 매핑 실패"
+            analysis_log.append(log_entry)
+            continue
+            
+        corp_code = corp_map[ticker]["corp_code"]
+        print(f"🏢 Querying DART financials for {name} ({corp_code})...")
+        
+        # Fetch 2025 financials (with 2024 fallback)
+        financials = fetch_dart_financials(DART_API_KEY, corp_code, year=2025)
+        
+        if not financials:
+            print(f"⚠️ Could not retrieve financials for {name}. Skipping.")
+            log_entry["Status"] = "Failed"
+            log_entry["탈락사유"] = "DART 재무제표 수신 실패"
+            analysis_log.append(log_entry)
+            continue
+            
+        # Verify 3-year net income (black/positive)
+        ni_0 = financials.get("net_income_y0")
+        ni_1 = financials.get("net_income_y1")
+        ni_2 = financials.get("net_income_y2")
+        
+        log_entry["Y0_순이익"] = ni_0
+        log_entry["Y1_순이익"] = ni_1
+        log_entry["Y2_순이익"] = ni_2
+        
+        if ni_0 is None or ni_1 is None or ni_2 is None:
+            print(f"⚠️ Missing 3-year net income data for {name} (Y0:{ni_0}, Y1:{ni_1}, Y2:{ni_2}). Skipping.")
+            log_entry["Status"] = "Failed"
+            log_entry["탈락사유"] = "3개년 순이익 데이터 누락"
+            analysis_log.append(log_entry)
+            continue
+            
+        is_net_income_black = not (ni_0 < 0 and ni_1 < 0 and ni_2 < 0)
+        if not is_net_income_black:
+            print(f"❌ {name} excluded: Net income is negative for 3 consecutive years (Y0:{ni_0:+,}, Y1:{ni_1:+,}, Y2:{ni_2:+,})")
+            log_entry["Status"] = "Failed"
+            log_entry["탈락사유"] = "3년 연속 적자"
+            analysis_log.append(log_entry)
+            continue
+            
+        # Verify debt vs retention conditions for 3 years
+        liab_0 = financials.get("liabilities_y0")
+        liab_1 = financials.get("liabilities_y1")
+        liab_2 = financials.get("liabilities_y2")
+        
+        eq_0 = financials.get("equity_y0")
+        eq_1 = financials.get("equity_y1")
+        eq_2 = financials.get("equity_y2")
+        
+        cap_0 = financials.get("capital_stock_y0")
+        cap_1 = financials.get("capital_stock_y1")
+        cap_2 = financials.get("capital_stock_y2")
+        
+        if None in [liab_0, liab_1, liab_2, eq_0, eq_1, eq_2, cap_0, cap_1, cap_2]:
+            print(f"⚠️ Missing liabilities/equity/capital stock data for {name}. Skipping.")
+            log_entry["Status"] = "Failed"
+            log_entry["탈락사유"] = "부채/자본/자본금 데이터 누락"
+            analysis_log.append(log_entry)
+            continue
+            
+        # Calculate ratios (%)
+        debt_ratio_0 = (liab_0 / eq_0 * 100) if eq_0 > 0 else 0
+        debt_ratio_1 = (liab_1 / eq_1 * 100) if eq_1 > 0 else 0
+        debt_ratio_2 = (liab_2 / eq_2 * 100) if eq_2 > 0 else 0
+        
+        reserve_ratio_0 = ((eq_0 - cap_0) / cap_0 * 100) if cap_0 > 0 else 0
+        reserve_ratio_1 = ((eq_1 - cap_1) / cap_1 * 100) if cap_1 > 0 else 0
+        reserve_ratio_2 = ((eq_2 - cap_2) / cap_2 * 100) if cap_2 > 0 else 0
+        
+        log_entry["Y0_부채비율(%)"] = round(debt_ratio_0, 1)
+        log_entry["Y0_유보율(%)"] = round(reserve_ratio_0, 1)
+        
+        # Check condition: 부채비율 < 유보율 for all 3 years
+        cond_0 = debt_ratio_0 < reserve_ratio_0
+        cond_1 = debt_ratio_1 < reserve_ratio_1
+        cond_2 = debt_ratio_2 < reserve_ratio_2
+        
+        log_entry["유보율>부채비율_충족"] = bool(cond_0 and cond_1 and cond_2)
+        
+        if not (cond_0 and cond_1 and cond_2):
+            print(f"❌ {name} excluded: Debt ratio >= Retention rate in one of the 3 years.")
+            print(f"   -> Y0 (Debt: {debt_ratio_0:.1f}% vs Reserve: {reserve_ratio_0:.1f}%)")
+            print(f"   -> Y1 (Debt: {debt_ratio_1:.1f}% vs Reserve: {reserve_ratio_1:.1f}%)")
+            print(f"   -> Y2 (Debt: {debt_ratio_2:.1f}% vs Reserve: {reserve_ratio_2:.1f}%)")
+            log_entry["Status"] = "Failed"
+            log_entry["탈락사유"] = "유보율 > 부채비율 3년 조건 미달"
+            analysis_log.append(log_entry)
+            continue
+            
+        print(f"✅ {name} passed DART checks (3y net income and debt < retention)!")
+
         print(f"📈 Fetching price history via KIS API for {name} ({ticker})...")
         
         try:
@@ -135,102 +231,7 @@ def run_quant_filtering():
             log_entry["거래량_비율(%)"] = round(volume_ratio, 1)
             
             print(f"   -> Price vs MA1000: {price_vs_ma_1000} | MAs: {alignment_status} | Volume Ratio: {volume_ratio:.1f}%")
-            
-            # 4. Check DART Financials
-            if ticker not in corp_map:
-                print(f"⚠️ {name} ({ticker}) not found in DART corporate map. Skipping due to missing financials.")
-                log_entry["Status"] = "Failed"
-                log_entry["탈락사유"] = "DART 기업코드 매핑 실패"
-                analysis_log.append(log_entry)
-                continue
-                
-            corp_code = corp_map[ticker]["corp_code"]
-            print(f"🏢 Querying DART financials for {name} ({corp_code})...")
-            
-            # Fetch 2025 financials (with 2024 fallback)
-            financials = fetch_dart_financials(DART_API_KEY, corp_code, year=2025)
-            
-            if not financials:
-                print(f"⚠️ Could not retrieve financials for {name}. Skipping.")
-                log_entry["Status"] = "Failed"
-                log_entry["탈락사유"] = "DART 재무제표 수신 실패"
-                analysis_log.append(log_entry)
-                continue
-                
-            # Verify 3-year net income (black/positive)
-            ni_0 = financials.get("net_income_y0")
-            ni_1 = financials.get("net_income_y1")
-            ni_2 = financials.get("net_income_y2")
-            
-            log_entry["Y0_순이익"] = ni_0
-            log_entry["Y1_순이익"] = ni_1
-            log_entry["Y2_순이익"] = ni_2
-            
-            if ni_0 is None or ni_1 is None or ni_2 is None:
-                print(f"⚠️ Missing 3-year net income data for {name} (Y0:{ni_0}, Y1:{ni_1}, Y2:{ni_2}). Skipping.")
-                log_entry["Status"] = "Failed"
-                log_entry["탈락사유"] = "3개년 순이익 데이터 누락"
-                analysis_log.append(log_entry)
-                continue
-                
-            is_net_income_black = not (ni_0 < 0 and ni_1 < 0 and ni_2 < 0)
-            if not is_net_income_black:
-                print(f"❌ {name} excluded: Net income is negative for 3 consecutive years (Y0:{ni_0:+,}, Y1:{ni_1:+,}, Y2:{ni_2:+,})")
-                log_entry["Status"] = "Failed"
-                log_entry["탈락사유"] = "3년 연속 적자"
-                analysis_log.append(log_entry)
-                continue
-                
-            # Verify debt vs retention conditions for 3 years
-            liab_0 = financials.get("liabilities_y0")
-            liab_1 = financials.get("liabilities_y1")
-            liab_2 = financials.get("liabilities_y2")
-            
-            eq_0 = financials.get("equity_y0")
-            eq_1 = financials.get("equity_y1")
-            eq_2 = financials.get("equity_y2")
-            
-            cap_0 = financials.get("capital_stock_y0")
-            cap_1 = financials.get("capital_stock_y1")
-            cap_2 = financials.get("capital_stock_y2")
-            
-            if None in [liab_0, liab_1, liab_2, eq_0, eq_1, eq_2, cap_0, cap_1, cap_2]:
-                print(f"⚠️ Missing liabilities/equity/capital stock data for {name}. Skipping.")
-                log_entry["Status"] = "Failed"
-                log_entry["탈락사유"] = "부채/자본/자본금 데이터 누락"
-                analysis_log.append(log_entry)
-                continue
-                
-            # Calculate ratios (%)
-            debt_ratio_0 = (liab_0 / eq_0 * 100) if eq_0 > 0 else 0
-            debt_ratio_1 = (liab_1 / eq_1 * 100) if eq_1 > 0 else 0
-            debt_ratio_2 = (liab_2 / eq_2 * 100) if eq_2 > 0 else 0
-            
-            reserve_ratio_0 = ((eq_0 - cap_0) / cap_0 * 100) if cap_0 > 0 else 0
-            reserve_ratio_1 = ((eq_1 - cap_1) / cap_1 * 100) if cap_1 > 0 else 0
-            reserve_ratio_2 = ((eq_2 - cap_2) / cap_2 * 100) if cap_2 > 0 else 0
-            
-            log_entry["Y0_부채비율(%)"] = round(debt_ratio_0, 1)
-            log_entry["Y0_유보율(%)"] = round(reserve_ratio_0, 1)
-            
-            # Check condition: 부채비율 < 유보율 for all 3 years
-            cond_0 = debt_ratio_0 < reserve_ratio_0
-            cond_1 = debt_ratio_1 < reserve_ratio_1
-            cond_2 = debt_ratio_2 < reserve_ratio_2
-            
-            log_entry["유보율>부채비율_충족"] = bool(cond_0 and cond_1 and cond_2)
-            
-            if not (cond_0 and cond_1 and cond_2):
-                print(f"❌ {name} excluded: Debt ratio >= Retention rate in one of the 3 years.")
-                print(f"   -> Y0 (Debt: {debt_ratio_0:.1f}% vs Reserve: {reserve_ratio_0:.1f}%)")
-                print(f"   -> Y1 (Debt: {debt_ratio_1:.1f}% vs Reserve: {reserve_ratio_1:.1f}%)")
-                print(f"   -> Y2 (Debt: {debt_ratio_2:.1f}% vs Reserve: {reserve_ratio_2:.1f}%)")
-                log_entry["Status"] = "Failed"
-                log_entry["탈락사유"] = "유보율 > 부채비율 3년 조건 미달"
-                analysis_log.append(log_entry)
-                continue
-                
-            print(f"✅ {name} passed DART checks (3y net income and debt < retention)!")
+
             
             # 5. Fetch Supply/Demand via KIS API
             inv_data = fetch_investor_trend(ticker)
