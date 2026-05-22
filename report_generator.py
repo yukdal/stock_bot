@@ -57,16 +57,21 @@ def build_prompt(filtered_stocks):
 """
 
     prompt = f"""
-당신은 대한민국 최고의 주식 시장 퀀트 분석가입니다. 아래 필터링된 주도주 데이터를 바탕으로 다음 [출력 양식 가이드]를 100% 동일하게 준수하여 리포트를 작성하십시오. 
-절대 다른 문구를 추가하거나 서식을 임의로 변형하지 마십시오. 제공된 데이터를 그대로 채워 넣고, 뉴스 및 테마만 당신의 지식을 활용해 추출하십시오.
+당신은 대한민국 최고의 주식 시장 퀀트 분석가입니다. 아래 필터링된 주도주 데이터를 바탕으로 가장 스윙 매매에 적합한 TOP 1~2 종목을 선정하고, 다음 [출력 양식 가이드]를 100% 동일하게 준수하여 리포트를 작성하십시오. 
+절대 다른 문구를 추가하거나 서식을 임의로 변형하지 마십시오. 제공된 데이터를 기반으로 분석하되, 뉴스 및 테마, 예상 매수가/매도가, 추천 사유 등은 당신의 지식과 분석력을 활용해 작성하십시오. 만약 조건에 부합하는 종목이 전혀 없다면 추천하지 않아도 됩니다.
 
 [출력 양식 가이드 시작]
 🚀 [오후 8시 Gemini Pro 연동 스윙 주도주 브리핑]
 
-(각 종목마다 아래 블록을 반복 생성)
+🏆 [오늘의 TOP 스윙 추천주]
+(선정된 1~2개 종목에 대해서만 아래 블록을 반복 생성, 없으면 "오늘의 추천 종목이 없습니다." 출력)
 ■ 종목명: {{종목명}} ({{티커}}) [{{시장구분}}]
 - 주도 테마: {{네이버 증권 등에서 추출한 핵심 주도 테마명 1~2개}}
 - 당일 등락률: {{당일 등락률}} | 거래대금: {{당일 거래대금}}
+- 💰 예상 매수가: {{구체적인 가격 및 이유}}
+- 🎯 목표 매도가: {{구체적인 가격 및 이유}}
+- 🛑 손절가: {{구체적인 가격 및 이유}}
+- 💡 추천 사유: {{수급, 차트, 재무 등을 종합한 논리적 사유}}
 
 📈 기술적 추세 (Trend Check)
 - 1000일선 위치: [{{1000일선 위치}}] (현재가: {{현재가}} / 1000일선: {{1000일선 값}})
@@ -83,6 +88,13 @@ def build_prompt(filtered_stocks):
 📰 관련 핵심 뉴스 (Gemini 요약)
 - "{{뉴스 데이터에서 당일 급등 원인이 된 가장 중요한 핵심 헤드라인 1개 발췌 및 요약}}" (출처: {{해당 뉴스의 실제 출처}})
 --------------------------------------
+
+📊 [필터링 통과 종목 전체 요약]
+(필터링을 통과한 모든 종목에 대해 아래와 같이 간단한 표 형태의 텍스트로 요약 작성. markdown table 사용)
+| 종목명 | 티커 | 등락률 | 거래대금 | MA1000 위치 | 외국인수급 | 기관수급 |
+|---|---|---|---|---|---|---|
+| {{종목명}} | {{티커}} | {{당일 등락률}} | {{당일 거래대금}} | {{1000일선 위치}} | {{외국인 수급}} | {{기관 수급}} |
+
 [출력 양식 가이드 끝]
 
 [주도주 데이터]
@@ -101,8 +113,11 @@ def generate_mock_report(filtered_stocks):
     if not filtered_stocks:
         report += "오늘 조건(가격 10~30% 상승, 거래대금 100억 이상 등)을 통과한 종목이 없습니다.\n"
         return report
+
+    report += "🏆 [오늘의 TOP 스윙 추천주]\n\n"
         
-    for s in filtered_stocks:
+    top_stocks = filtered_stocks[:2]
+    for s in top_stocks:
         sd = s["supply_demand"]
         f_val_eok = sd['foreigner_val'] / 100000000
         o_val_eok = sd['organ_val'] / 100000000
@@ -122,9 +137,17 @@ def generate_mock_report(filtered_stocks):
             news_line = s["news"][0]["title"]
             news_source = s["news"][0]["source"]
             
+        buy_price = int(s['close'] * 0.98)
+        sell_price = int(s['close'] * 1.10)
+        stop_price = int(s['close'] * 0.95)
+            
         report += f"■ 종목명: {s['name']} ({s['ticker']}) [{s['market']}]\n"
         report += f"- 주도 테마: {s['sector']} (Mock Data)\n"
-        report += f"- 당일 등락률: {s['change_pct']:+.2f}% | 거래대금: {s['approx_value']/100000000:,.0f}억 원\n\n"
+        report += f"- 당일 등락률: {s['change_pct']:+.2f}% | 거래대금: {s['approx_value']/100000000:,.0f}억 원\n"
+        report += f"- 💰 예상 매수가: {buy_price:,}원 (현재가 부근 눌림목 대기)\n"
+        report += f"- 🎯 목표 매도가: {sell_price:,}원 (이전 고점 저항선 고려)\n"
+        report += f"- 🛑 손절가: {stop_price:,}원 (주요 지지선 이탈 시)\n"
+        report += f"- 💡 추천 사유: 양호한 수급 및 기술적 반등 기대 (Mock 사유)\n\n"
         
         report += "📈 기술적 추세 (Trend Check)\n"
         report += f"- 1000일선 위치: [{ma_status}] (현재가: {s['close']:,}원 / 1000일선: {ma1000_val})\n"
@@ -140,7 +163,17 @@ def generate_mock_report(filtered_stocks):
         
         report += "📰 관련 핵심 뉴스 (Gemini 요약)\n"
         report += f"- \"{news_line}\" (출처: {news_source})\n"
-        report += "--------------------------------------\n"
+        report += "--------------------------------------\n\n"
+        
+    report += "📊 [필터링 통과 종목 전체 요약]\n"
+    report += "| 종목명 | 티커 | 등락률 | 거래대금 | MA1000 위치 | 외국인수급 | 기관수급 |\n"
+    report += "|---|---|---|---|---|---|---|\n"
+    for s in filtered_stocks:
+        sd = s["supply_demand"]
+        f_val_eok = sd['foreigner_val'] / 100000000
+        o_val_eok = sd['organ_val'] / 100000000
+        ma_status = "위" if "ABOVE" in s['price_vs_ma_1000'] else "아래"
+        report += f"| {s['name']} | {s['ticker']} | {s['change_pct']:+.2f}% | {s['approx_value']/100000000:,.0f}억 | {ma_status} | {f_val_eok:+.0f}억 | {o_val_eok:+.0f}억 |\n"
         
     return report
 
