@@ -11,6 +11,10 @@ from quant_filter import run_quant_filtering
 from report_generator import generate_report
 from notifier import send_telegram_message, send_telegram_document
 from bot_listener import start_bot_listener
+import threading
+
+# Global lock to prevent concurrent executions
+pipeline_lock = threading.Lock()
 
 BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
@@ -25,15 +29,20 @@ def execute_pipeline():
     4. Save report locally
     5. Send Telegram notification
     """
-    today = datetime.date.today()
-    print(f"\n🔔 [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting Screener Pipeline...")
-    
-    # Skip weekends in standard run
-    if today.weekday() >= 5:
-        print("📅 Today is a weekend. The Korean stock market is closed. Skipping run.")
+    if not pipeline_lock.acquire(blocking=False):
+        print("⚠️ Pipeline is already running. Skipping this execution request.")
         return
-        
+
     try:
+        today = datetime.date.today()
+        print(f"\n🔔 [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting Screener Pipeline...")
+        
+        # Skip weekends in standard run
+        if today.weekday() >= 5:
+            print("📅 Today is a weekend. The Korean stock market is closed. Skipping run.")
+            return
+            
+        try:
         # 1. Run Quantitative and DART Financial Filters
         filtered_stocks, analysis_log = run_quant_filtering()
         
@@ -65,6 +74,9 @@ def execute_pipeline():
         
     except Exception as e:
         print(f"❌ Error occurred during pipeline execution: {e}")
+    finally:
+        pipeline_lock.release()
+        print("🔓 Pipeline lock released.")
 
 def main():
     parser = argparse.ArgumentParser(description="K-Stock Quant & DART Swing Screener")

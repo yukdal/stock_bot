@@ -171,7 +171,8 @@ def generate_report(filtered_stocks, analysis_log=None):
             report_text = generate_mock_report(filtered_stocks)
 
     if analysis_log:
-        report_text += "\n### 📝 전체 분석 대상 종목 현황\n\n"
+        report_text += "\n<!-- SPLIT_HERE -->\n"
+        report_text += "### 📝 전체 분석 대상 종목 현황\n\n"
         report_text += "| 종목명 | 티커 | MA1000 위치 | 상태 | 탈락 사유 |\n"
         report_text += "| :--- | :--- | :--- | :--- | :--- |\n"
         for log in analysis_log:

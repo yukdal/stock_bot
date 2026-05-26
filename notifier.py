@@ -18,20 +18,43 @@ def send_telegram_message(text):
     MAX_LENGTH = 4000
     chunks = []
     
-    if len(text) <= MAX_LENGTH:
-        chunks.append(text)
-    else:
-        # Split by paragraphs or newlines to preserve readable formatting
-        lines = text.split("\n")
-        current_chunk = ""
-        for line in lines:
-            if len(current_chunk) + len(line) + 1 > MAX_LENGTH:
-                chunks.append(current_chunk)
-                current_chunk = line + "\n"
-            else:
-                current_chunk += line + "\n"
-        if current_chunk:
-            chunks.append(current_chunk)
+    # 1. Pre-split by explicit delimiter if present
+    pre_chunks = text.split("<!-- SPLIT_HERE -->")
+    
+    for pt in pre_chunks:
+        pt = pt.strip()
+        if not pt:
+            continue
+            
+        if len(pt) <= MAX_LENGTH:
+            chunks.append(pt)
+        else:
+            # 2. Split by newlines to preserve readable formatting
+            lines = pt.split("\n")
+            current_chunk = ""
+            in_table = False
+            table_header = ""
+            
+            for line in lines:
+                # Detect markdown table separator line (e.g., | :--- | :--- |)
+                if line.strip().startswith("|") and ":---" in line.replace(" ", ""):
+                    in_table = True
+                    # The previous line is the column names
+                    prev_line = current_chunk.strip().split("\n")[-1] if current_chunk.strip() else ""
+                    table_header = prev_line + "\n" + line + "\n"
+                elif in_table and line.strip() != "" and not line.strip().startswith("|"):
+                    in_table = False
+                    
+                if len(current_chunk) + len(line) + 1 > MAX_LENGTH:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = ""
+                    if in_table and table_header:
+                        current_chunk = table_header
+                    current_chunk += line + "\n"
+                else:
+                    current_chunk += line + "\n"
+            if current_chunk.strip():
+                chunks.append(current_chunk.strip())
             
     success = True
     for chat_id in chat_ids:
