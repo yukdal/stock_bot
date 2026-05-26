@@ -11,6 +11,7 @@ from quant_filter import run_quant_filtering
 from report_generator import generate_report
 from notifier import send_telegram_message, send_telegram_document
 from bot_listener import start_bot_listener
+from index_closing import execute_index_closing
 
 BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
@@ -73,6 +74,11 @@ def main():
         action="store_true",
         help="Run the screening pipeline immediately and exit."
     )
+    parser.add_argument(
+        "--now-index",
+        action="store_true",
+        help="Run the index closing settlement immediately and exit."
+    )
     args = parser.parse_args()
     
     # Validate .env config
@@ -81,6 +87,11 @@ def main():
     if args.now:
         print("🏃 Running manual one-off execution...")
         execute_pipeline()
+        sys.exit(0)
+        
+    if args.now_index:
+        print("🏃 Running manual one-off index settlement execution...")
+        execute_index_closing()
         sys.exit(0)
         
     # Schedule mode
@@ -92,14 +103,30 @@ def main():
     local_target = kst_target.astimezone()
     local_time_str = local_target.strftime("%H:%M")
     
-    print(f"📅 Screener is scheduled to run every day at 20:00 KST (System Local Time: {local_time_str}).")
+    # Calculate local system time corresponding to 15:45 KST
+    kst_index_target = datetime.datetime.combine(datetime.date.today(), datetime.time(15, 45)).replace(tzinfo=kst_tz)
+    local_index_time_str = kst_index_target.astimezone().strftime("%H:%M")
+    
+    print(f"📅 Index Settlement is scheduled to run every Mon-Fri at 15:45 KST (System Local Time: {local_index_time_str}).")
+    print(f"📅 Screener is scheduled to run every Mon-Fri at 20:00 KST (System Local Time: {local_time_str}).")
     print("👉 Use Ctrl+C to terminate.")
     
     # Start bot listener thread in the background
     start_bot_listener(run_callback=execute_pipeline)
     
-    # Schedule daily at system local time equivalent to 20:00 KST
-    schedule.every().day.at(local_time_str).do(execute_pipeline)
+    # Schedule index closing daily at system local time equivalent to 15:45 KST (월~금)
+    schedule.every().monday.at(local_index_time_str).do(execute_index_closing)
+    schedule.every().tuesday.at(local_index_time_str).do(execute_index_closing)
+    schedule.every().wednesday.at(local_index_time_str).do(execute_index_closing)
+    schedule.every().thursday.at(local_index_time_str).do(execute_index_closing)
+    schedule.every().friday.at(local_index_time_str).do(execute_index_closing)
+    
+    # Schedule screener daily at system local time equivalent to 20:00 KST (월~금)
+    schedule.every().monday.at(local_time_str).do(execute_pipeline)
+    schedule.every().tuesday.at(local_time_str).do(execute_pipeline)
+    schedule.every().wednesday.at(local_time_str).do(execute_pipeline)
+    schedule.every().thursday.at(local_time_str).do(execute_pipeline)
+    schedule.every().friday.at(local_time_str).do(execute_pipeline)
     
     # Keep the script running
     try:
