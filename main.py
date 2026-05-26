@@ -42,7 +42,6 @@ def execute_pipeline():
             print("📅 Today is a weekend. The Korean stock market is closed. Skipping run.")
             return
             
-        try:
         # 1. Run Quantitative and DART Financial Filters
         filtered_stocks, analysis_log = run_quant_filtering()
         
