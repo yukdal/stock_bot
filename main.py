@@ -115,18 +115,10 @@ def main():
     start_bot_listener(run_callback=execute_pipeline)
     
     # Schedule index closing daily at system local time equivalent to 15:45 KST (월~금)
-    schedule.every().monday.at(local_index_time_str).do(execute_index_closing)
-    schedule.every().tuesday.at(local_index_time_str).do(execute_index_closing)
-    schedule.every().wednesday.at(local_index_time_str).do(execute_index_closing)
-    schedule.every().thursday.at(local_index_time_str).do(execute_index_closing)
-    schedule.every().friday.at(local_index_time_str).do(execute_index_closing)
+    schedule.every().day.at(local_index_time_str).do(execute_index_closing)
     
     # Schedule screener daily at system local time equivalent to 20:00 KST (월~금)
-    schedule.every().monday.at(local_time_str).do(execute_pipeline)
-    schedule.every().tuesday.at(local_time_str).do(execute_pipeline)
-    schedule.every().wednesday.at(local_time_str).do(execute_pipeline)
-    schedule.every().thursday.at(local_time_str).do(execute_pipeline)
-    schedule.every().friday.at(local_time_str).do(execute_pipeline)
+    schedule.every().day.at(local_time_str).do(execute_pipeline)
     
     # Keep the script running
     try:

@@ -92,37 +92,40 @@ def execute_index_closing():
         
     print(f"\n📈 [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting Index Closing Settlement...")
     
-    report_lines = []
-    report_lines.append("📊 [오후 3시 45분 국내외 주요 지수 마감 정산 (v4.1)]")
-    report_lines.append("오늘 정규장 마감 직후 집계된 주요 지수의 위치와 변동성 데이터입니다. (데이터 교차검증 완료)\n")
-    
-    report_lines.append("| 지수명 | 당일 종가 (전일대비) | 역사적 최고점 대비 | 직전 전고점 대비 |")
-    report_lines.append("| :--- | :--- | :---: | :---: |")
-    
-    for name, ticker in INDICES.items():
-        data = fetch_index_data(ticker)
-        if data:
-            c_close = f"{data['current_close']:,.2f}"
-            pt_chg = format_number(data['point_change'], is_pct=False)
-            pct_chg = format_number(data['pct_change'], is_pct=True)
-            
-            ath_chg = format_number(data['ath_pct'], is_pct=True)
-            lh_chg = format_number(data['local_high_pct'], is_pct=True)
-            
-            report_lines.append(f"| **{name}** | {c_close} ({pt_chg}pt, {pct_chg}) | {ath_chg} | {lh_chg} |")
-        else:
-            report_lines.append(f"| **{name}** | 데이터 수집 지연 | - | - |")
-            
-    comment = generate_index_macro_comment()
-    report_lines.append("\n💡 **매크로 한줄평 (Gemini Pro 분석)**")
-    report_lines.append(f"- {comment}")
-    report_lines.append("--------------------------------------")
-    
-    final_report = "\n".join(report_lines)
-    
-    # 텔레그램 발송
-    send_telegram_message(final_report)
-    print("🎉 Index closing settlement dispatched successfully!")
+    try:
+        report_lines = []
+        report_lines.append("📊 [오후 3시 45분 국내외 주요 지수 마감 정산 (v4.1)]")
+        report_lines.append("오늘 정규장 마감 직후 집계된 주요 지수의 위치와 변동성 데이터입니다. (데이터 교차검증 완료)\n")
+        
+        report_lines.append("| 지수명 | 당일 종가 (전일대비) | 역사적 최고점 대비 | 직전 전고점 대비 |")
+        report_lines.append("| :--- | :--- | :---: | :---: |")
+        
+        for name, ticker in INDICES.items():
+            data = fetch_index_data(ticker)
+            if data:
+                c_close = f"{data['current_close']:,.2f}"
+                pt_chg = format_number(data['point_change'], is_pct=False)
+                pct_chg = format_number(data['pct_change'], is_pct=True)
+                
+                ath_chg = format_number(data['ath_pct'], is_pct=True)
+                lh_chg = format_number(data['local_high_pct'], is_pct=True)
+                
+                report_lines.append(f"| **{name}** | {c_close} ({pt_chg}pt, {pct_chg}) | {ath_chg} | {lh_chg} |")
+            else:
+                report_lines.append(f"| **{name}** | 데이터 수집 지연 | - | - |")
+                
+        comment = generate_index_macro_comment()
+        report_lines.append("\n💡 **매크로 한줄평 (Gemini Pro 분석)**")
+        report_lines.append(f"- {comment}")
+        report_lines.append("--------------------------------------")
+        
+        final_report = "\n".join(report_lines)
+        
+        # 텔레그램 발송
+        send_telegram_message(final_report)
+        print("🎉 Index closing settlement dispatched successfully!")
+    except Exception as e:
+        print(f"❌ Error occurred during index settlement execution: {e}")
 
 if __name__ == "__main__":
     execute_index_closing()
