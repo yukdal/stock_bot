@@ -111,14 +111,21 @@ def main():
     print(f"📅 Screener is scheduled to run every Mon-Fri at 20:00 KST (System Local Time: {local_time_str}).")
     print("👉 Use Ctrl+C to terminate.")
     
+    # Define a wrapper to run jobs in background threads so they don't block the scheduler
+    def run_threaded(job_func):
+        import threading
+        job_thread = threading.Thread(target=job_func)
+        job_thread.daemon = True
+        job_thread.start()
+
     # Start bot listener thread in the background
     start_bot_listener(run_callback=execute_pipeline)
     
     # Schedule index closing daily at system local time equivalent to 15:45 KST (월~금)
-    schedule.every().day.at(local_index_time_str).do(execute_index_closing)
+    schedule.every().day.at(local_index_time_str).do(run_threaded, execute_index_closing)
     
     # Schedule screener daily at system local time equivalent to 20:00 KST (월~금)
-    schedule.every().day.at(local_time_str).do(execute_pipeline)
+    schedule.every().day.at(local_time_str).do(run_threaded, execute_pipeline)
     
     # Keep the script running
     try:
