@@ -95,20 +95,9 @@ def main():
         sys.exit(0)
         
     # Schedule mode
-    print("🕰️ Starting daily scheduler mode...")
-    
-    # Calculate local system time corresponding to 20:00 KST
-    kst_tz = datetime.timezone(datetime.timedelta(hours=9))
-    kst_target = datetime.datetime.combine(datetime.date.today(), datetime.time(20, 0)).replace(tzinfo=kst_tz)
-    local_target = kst_target.astimezone()
-    local_time_str = local_target.strftime("%H:%M")
-    
-    # Calculate local system time corresponding to 15:45 KST
-    kst_index_target = datetime.datetime.combine(datetime.date.today(), datetime.time(15, 45)).replace(tzinfo=kst_tz)
-    local_index_time_str = kst_index_target.astimezone().strftime("%H:%M")
-    
-    print(f"📅 Index Settlement is scheduled to run every Mon-Fri at 15:45 KST (System Local Time: {local_index_time_str}).")
-    print(f"📅 Screener is scheduled to run every Mon-Fri at 20:00 KST (System Local Time: {local_time_str}).")
+    print("🕰️ Starting daily robust scheduler mode...")
+    print("📅 Index Settlement is scheduled to run every Mon-Fri at 15:45 KST.")
+    print("📅 Screener is scheduled to run every Mon-Fri at 20:00 KST.")
     print("👉 Use Ctrl+C to terminate.")
     
     # Define a wrapper to run jobs in background threads so they don't block the scheduler
@@ -121,16 +110,29 @@ def main():
     # Start bot listener thread in the background
     start_bot_listener(run_callback=execute_pipeline)
     
-    # Schedule index closing daily at system local time equivalent to 15:45 KST (월~금)
-    schedule.every().day.at(local_index_time_str).do(run_threaded, execute_index_closing)
+    # Keep the script running with robust custom time checking
+    kst_tz = datetime.timezone(datetime.timedelta(hours=9))
+    last_run_index = None
+    last_run_screener = None
     
-    # Schedule screener daily at system local time equivalent to 20:00 KST (월~금)
-    schedule.every().day.at(local_time_str).do(run_threaded, execute_pipeline)
-    
-    # Keep the script running
     try:
         while True:
-            schedule.run_pending()
+            now_kst = datetime.datetime.now(kst_tz)
+            current_time = now_kst.strftime("%H:%M")
+            current_date = now_kst.date()
+            
+            # 15:45 KST: Index closing settlement
+            if current_time == "15:45" and last_run_index != current_date:
+                print(f"⏰ Triggering 15:45 KST Index Settlement...")
+                run_threaded(execute_index_closing)
+                last_run_index = current_date
+                
+            # 20:00 KST: Screener pipeline
+            if current_time == "20:00" and last_run_screener != current_date:
+                print(f"⏰ Triggering 20:00 KST Screener...")
+                run_threaded(execute_pipeline)
+                last_run_screener = current_date
+                
             time.sleep(10)
     except KeyboardInterrupt:
         print("\n👋 Scheduler terminated by user.")
