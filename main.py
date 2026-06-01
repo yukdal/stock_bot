@@ -108,12 +108,26 @@ def main():
         job_thread.start()
 
     # Start bot listener thread in the background
-    start_bot_listener(run_callback=execute_pipeline)
+    start_bot_listener(screener_callback=execute_pipeline, index_callback=execute_index_closing)
     
     # Keep the script running with robust custom time checking
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     last_run_index = None
     last_run_screener = None
+    
+    # Catch-up logic on startup
+    now_kst = datetime.datetime.now(kst_tz)
+    current_date = now_kst.date()
+    
+    if now_kst.time() >= datetime.time(15, 45) and current_date.weekday() < 5:
+        print("🚀 Startup Check: Triggering 15:45 KST Index Settlement immediately...")
+        run_threaded(execute_index_closing)
+        last_run_index = current_date
+        
+    if now_kst.time() >= datetime.time(20, 0) and current_date.weekday() < 5:
+        print("🚀 Startup Check: Triggering 20:00 KST Screener immediately...")
+        run_threaded(execute_pipeline)
+        last_run_screener = current_date
     
     try:
         while True:
