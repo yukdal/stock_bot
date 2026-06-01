@@ -10,30 +10,34 @@ INDICES = {
     "S&P 500": "^GSPC"
 }
 
-def fetch_index_data(ticker):
+def fetch_index_data(name, ticker):
     """
     특정 지수의 당일/전일 종가, ATH(역사적 최고점), Local High(52주 최고점)를 계산합니다.
     """
     try:
         idx = yf.Ticker(ticker)
+        max_df = idx.history(period="max")
         
-        # 최근 5일 데이터로 당일/전일 종가 추출 (휴일 감안)
-        recent_df = idx.history(period="5d")
-        if len(recent_df) < 2:
-            return None
-            
-        current_close = recent_df['Close'].iloc[-1]
-        prev_close = recent_df['Close'].iloc[-2]
-        
-        # 변동 포인트 및 등락률 연산
-        point_change = current_close - prev_close
-        if prev_close and prev_close > 0:
-            pct_change = (point_change / prev_close) * 100
+        if name in ["KOSPI", "KOSDAQ"]:
+            # Fetch real-time data from Naver Finance because Yahoo is 1-day delayed at 15:45 KST
+            url = f"https://polling.finance.naver.com/api/realtime/domestic/index/{name}"
+            import requests
+            r = requests.get(url, timeout=10)
+            data = r.json()['datas'][0]
+            current_close = float(data['closePrice'].replace(',', ''))
+            point_change = float(data['compareToPreviousClosePrice'].replace(',', ''))
+            pct_change = float(data['fluctuationsRatio'].replace(',', ''))
         else:
-            pct_change = 0.0
+            # S&P 500 uses yfinance (US market already closed)
+            recent_df = idx.history(period="5d")
+            if len(recent_df) < 2:
+                return None
+            current_close = recent_df['Close'].iloc[-1]
+            prev_close = recent_df['Close'].iloc[-2]
+            point_change = current_close - prev_close
+            pct_change = (point_change / prev_close) * 100 if prev_close > 0 else 0.0
             
         # 최대 기간 데이터로 최고점 분석
-        max_df = idx.history(period="max")
         if len(max_df) > 0:
             ath = max_df['High'].max()
             local_df = max_df.tail(252) # 약 52주
@@ -53,7 +57,7 @@ def fetch_index_data(ticker):
             "local_high_pct": local_high_pct
         }
     except Exception as e:
-        print(f"❌ Error fetching index data for {ticker}: {e}")
+        print(f"❌ Error fetching index data for {name} ({ticker}): {e}")
         return None
 
 def generate_index_macro_comment():
@@ -67,8 +71,9 @@ def generate_index_macro_comment():
         response = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
         return response.text.strip()
     except Exception as e:
-        print(f"❌ Gemini Macro Comment Error: {e}")
-        return "시장 데이터 분석 중 일시적인 지연이 발생했습니다. 리스크 관리에 유의하시기 바랍니다."
+        err_str = str(e)
+        print(f"❌ Gemini Macro Comment Error: {err_str}")
+        return f"시장 데이터 분석 중 일시적인 지연이 발생했습니다. (오류: {err_str[:100]})"
 
 def format_number(val, is_pct=False):
     """지수 소수점 및 기호 포맷팅"""
@@ -101,7 +106,7 @@ def execute_index_closing():
         report_lines.append("| :--- | :--- | :---: | :---: |")
         
         for name, ticker in INDICES.items():
-            data = fetch_index_data(ticker)
+            data = fetch_index_data(name, ticker)
             if data:
                 c_close = f"{data['current_close']:,.2f}"
                 pt_chg = format_number(data['point_change'], is_pct=False)
