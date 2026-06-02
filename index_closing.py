@@ -65,15 +65,23 @@ def generate_index_macro_comment():
     if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY":
         return "현재 시장의 변동성이 지속되고 있으며, 주요 지지선 및 저항선 부근에서의 리스크 관리가 필요한 국면입니다. (Mock Data)"
         
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        prompt = "당신은 20년 경력의 증권사 수석 매크로 애널리스트입니다. 오늘 한국(KOSPI/KOSDAQ) 및 미국 시장 마감 직후의 시장 국면과 변동성에 대한 핵심 통찰을 딱 1줄의 숏 코멘트로 요약해서 작성해주세요."
-        response = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
-        return response.text.strip()
-    except Exception as e:
-        err_str = str(e)
-        print(f"❌ Gemini Macro Comment Error: {err_str}")
-        return f"시장 데이터 분석 중 일시적인 지연이 발생했습니다. (오류: {err_str[:100]})"
+    import time
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            prompt = "당신은 20년 경력의 증권사 수석 매크로 애널리스트입니다. 오늘 한국(KOSPI/KOSDAQ) 및 미국 시장 마감 직후의 시장 국면과 변동성에 대한 핵심 통찰을 딱 1줄의 숏 코멘트로 요약해서 작성해주세요."
+            response = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+            return response.text.strip()
+        except Exception as e:
+            err_str = str(e)
+            print(f"❌ Gemini Macro Comment Error (Attempt {attempt+1}/{max_retries}): {err_str}")
+            if "503" in err_str or "429" in err_str:
+                time.sleep(2)
+                continue
+            return f"시장 데이터 분석 중 일시적인 지연이 발생했습니다. (오류: {err_str[:100]})"
+            
+    return "시장 데이터 분석 중 일시적인 지연이 발생했습니다. (Gemini 서버 혼잡으로 인한 503 오류)"
 
 def format_number(val, is_pct=False):
     """지수 소수점 및 기호 포맷팅"""

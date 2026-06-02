@@ -18,41 +18,44 @@ def send_reply(chat_id, text):
 
 def process_updates(updates, screener_callback, index_callback):
     for update in updates:
-        message = update.get("message", {})
-        chat = message.get("chat", {})
-        chat_id = chat.get("id")
-        text = message.get("text", "")
-        
-        if not chat_id:
-            # Handle my_chat_member event (bot added to group)
-            my_chat_member = update.get("my_chat_member", {})
-            chat = my_chat_member.get("chat", {})
+        try:
+            message = update.get("message", {})
+            chat = message.get("chat", {})
             chat_id = chat.get("id")
-            new_status = my_chat_member.get("new_chat_member", {}).get("status")
-            if chat_id and new_status in ["member", "administrator"]:
+            text = message.get("text") or ""
+            
+            if not chat_id:
+                # Handle my_chat_member event (bot added to group)
+                my_chat_member = update.get("my_chat_member", {})
+                chat = my_chat_member.get("chat", {})
+                chat_id = chat.get("id")
+                new_status = my_chat_member.get("new_chat_member", {}).get("status")
+                if chat_id and new_status in ["member", "administrator"]:
+                    if add_chat_id(chat_id):
+                        send_reply(chat_id, "🤖 안녕하세요! 스윙종목 분석 봇입니다. 등록이 완료되어 앞으로 이 방에 매일 리포트를 보내드릴게요. 작동 확인을 원하시면 `/ping` 명령어를 입력해주세요.")
+                continue
+                
+            # Message processing
+            if text.startswith("/start"):
                 if add_chat_id(chat_id):
                     send_reply(chat_id, "🤖 안녕하세요! 스윙종목 분석 봇입니다. 등록이 완료되어 앞으로 이 방에 매일 리포트를 보내드릴게요. 작동 확인을 원하시면 `/ping` 명령어를 입력해주세요.")
-            continue
-            
-        # Message processing
-        if text.startswith("/start"):
-            if add_chat_id(chat_id):
-                send_reply(chat_id, "🤖 안녕하세요! 스윙종목 분석 봇입니다. 등록이 완료되어 앞으로 이 방에 매일 리포트를 보내드릴게요. 작동 확인을 원하시면 `/ping` 명령어를 입력해주세요.")
-            else:
-                send_reply(chat_id, "이미 등록된 채팅방입니다. 매일 리포트를 보내드릴게요!")
+                else:
+                    send_reply(chat_id, "이미 등록된 채팅방입니다. 매일 리포트를 보내드릴게요!")
+                    
+            elif text.startswith("/ping"):
+                send_reply(chat_id, "🏓 봇이 정상적으로 작동 중입니다!\n현재 15:45 지수 정산과 20:00 주도주 리포트 발송을 위해 대기 중입니다.\n\n수동 실행 명령어:\n`/index` - 지수 마감 정산 즉시 실행\n`/run` - 주도주 스크리닝 즉시 실행")
                 
-        elif text.startswith("/ping"):
-            send_reply(chat_id, "🏓 봇이 정상적으로 작동 중입니다!\n현재 15:45 지수 정산과 20:00 주도주 리포트 발송을 위해 대기 중입니다.\n\n수동 실행 명령어:\n`/index` - 지수 마감 정산 즉시 실행\n`/run` - 주도주 스크리닝 즉시 실행")
-            
-        elif text.startswith("/run"):
-            send_reply(chat_id, "🔄 즉시 주도주 스크리닝 분석을 시작합니다. 데이터 수집 및 분석에 시간이 다소 소요될 수 있습니다. 잠시만 기다려주세요...")
-            if screener_callback:
-                threading.Thread(target=screener_callback, daemon=True).start()
-                
-        elif text.startswith("/index"):
-            send_reply(chat_id, "🔄 즉시 지수 마감 정산 분석을 시작합니다. 잠시만 기다려주세요...")
-            if index_callback:
-                threading.Thread(target=index_callback, daemon=True).start()
+            elif text.startswith("/run"):
+                send_reply(chat_id, "🔄 즉시 주도주 스크리닝 분석을 시작합니다. 데이터 수집 및 분석에 시간이 다소 소요될 수 있습니다. 잠시만 기다려주세요...")
+                if screener_callback:
+                    threading.Thread(target=screener_callback, daemon=True).start()
+                    
+            elif text.startswith("/index"):
+                send_reply(chat_id, "🔄 즉시 지수 마감 정산 분석을 시작합니다. 잠시만 기다려주세요...")
+                if index_callback:
+                    threading.Thread(target=index_callback, daemon=True).start()
+        except Exception as e:
+            print(f"⚠️ Error processing a specific update: {e}")
 
 def poll_telegram(screener_callback, index_callback):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
