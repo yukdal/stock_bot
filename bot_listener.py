@@ -71,8 +71,18 @@ def poll_telegram(run_callback):
                     process_updates(updates, run_callback)
                     offset = updates[-1]["update_id"] + 1
             elif response.status_code == 409:
-                print("⚠️ Telegram API Conflict. Another polling instance might be running. Retrying...")
-                time.sleep(10)
+                error_msg = "🚨 [좀비 봇 감지 알림]\n다른 서버(또는 다른 폴더)에서 동일한 토큰으로 봇이 실행 중이어서 충돌(409 Conflict)이 발생했습니다!\n\n이로 인해 리포트가 2개씩 중복 발송되고 있습니다. 중복 발송을 막으려면 반드시 텔레그램 @BotFather 에 가셔서 토큰을 새로 발급(Revoke) 받아주세요."
+                print(error_msg)
+                
+                # 등록된 모든 채팅방에 경고 메시지 발송
+                from chat_manager import get_all_chat_ids
+                chat_ids = get_all_chat_ids()
+                for cid in chat_ids:
+                    send_reply(cid, error_msg)
+                    
+                print("좀비 봇 충돌로 인해 현재 프로세스를 종료합니다. 새 토큰으로 변경 후 다시 실행해주세요.")
+                import sys
+                sys.exit(1)
             else:
                 time.sleep(5)
         except Exception as e:

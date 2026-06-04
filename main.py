@@ -35,6 +35,22 @@ def execute_pipeline():
 
     try:
         today = datetime.date.today()
+        
+        # 쿨다운 타이머 체크 (중복 실행 방지)
+        cooldown_file = REPORTS_DIR / "last_run_time.txt"
+        if cooldown_file.exists():
+            with open(cooldown_file, "r") as f:
+                last_run_str = f.read().strip()
+            if last_run_str:
+                last_run_time = datetime.datetime.fromisoformat(last_run_str)
+                if (datetime.datetime.now() - last_run_time).total_seconds() < 1800: # 30분 이내
+                    print(f"⚠️ [중복 방지] 마지막 실행 후 30분이 지나지 않았습니다. 중복 실행을 스킵합니다. (Last run: {last_run_str})")
+                    return
+        
+        # 쿨다운 시간 업데이트
+        with open(cooldown_file, "w") as f:
+            f.write(datetime.datetime.now().isoformat())
+            
         print(f"\n🔔 [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting Screener Pipeline...")
         
         # Skip weekends in standard run
