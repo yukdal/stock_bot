@@ -3,6 +3,7 @@ import sys
 import argparse
 import datetime
 import time
+import socket
 import schedule
 import pandas as pd
 from pathlib import Path
@@ -67,6 +68,22 @@ def execute_pipeline():
     except Exception as e:
         print(f"❌ Error occurred during pipeline execution: {e}")
 
+LOCK_PORT = 18384
+lock_socket = None
+
+def acquire_process_lock():
+    """
+    중복 실행을 방지하기 위해 로컬 소켓을 바인딩합니다.
+    이미 다른 스케줄러 인스턴스가 돌고 있다면 에러와 함께 종료됩니다.
+    """
+    global lock_socket
+    try:
+        lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        lock_socket.bind(('127.0.0.1', LOCK_PORT))
+    except socket.error:
+        print(f"\n❌ [중복 실행 방지] 이미 봇 스케줄러 인스턴스가 실행 중입니다. (포트 {LOCK_PORT} 사용 중) 프로그램을 종료합니다.")
+        sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser(description="K-Stock Quant & DART Swing Screener")
     parser.add_argument(
@@ -95,6 +112,9 @@ def main():
         sys.exit(0)
         
     # Schedule mode
+    # 중복 실행 방지 락 획득 (OCI 및 로컬 겸용)
+    acquire_process_lock()
+    
     print("🕰️ Starting daily robust scheduler mode...")
     print("📅 Index Settlement is scheduled to run every Mon-Fri at 15:45 KST.")
     print("📅 Screener is scheduled to run every Mon-Fri at 20:00 KST.")
