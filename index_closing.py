@@ -6,7 +6,8 @@ from notifier import send_telegram_message
 
 def get_market_data(ticker):
     try:
-        data = yf.download(ticker, period="5d")
+        idx = yf.Ticker(ticker)
+        data = idx.history(period="5d")
         # Remove NaN rows (e.g. weekends/holidays) to prevent errors
         data = data.dropna(subset=['Close'])
         
