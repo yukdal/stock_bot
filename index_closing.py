@@ -122,7 +122,7 @@ def execute_index_closing(chat_id=None):
     
     # 텔레그램 발송
     if chat_id:
-        send_telegram_message(chat_id, final_report)
+        send_telegram_message(final_report, chat_id=chat_id)
     else:
         send_telegram_message(final_report)
     print("🎉 Index closing settlement dispatched successfully!")

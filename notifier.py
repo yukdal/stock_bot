@@ -2,12 +2,12 @@ import requests
 from config import TELEGRAM_BOT_TOKEN
 from chat_manager import get_all_chat_ids
 
-def send_telegram_message(text):
+def send_telegram_message(text, chat_id=None):
     """
-    Send a message to all configured Telegram chats.
+    Send a message to all configured Telegram chats, or a specific chat_id if provided.
     If the message exceeds 4096 characters, split it into chunks.
     """
-    chat_ids = get_all_chat_ids()
+    chat_ids = [chat_id] if chat_id else get_all_chat_ids()
     if not TELEGRAM_BOT_TOKEN or not chat_ids:
         print("⚠️ Telegram bot token or chat IDs are missing. Skipping notification.")
         return False
