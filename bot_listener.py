@@ -3,6 +3,7 @@ import requests
 import threading
 from config import TELEGRAM_BOT_TOKEN
 from chat_manager import add_chat_id
+from index_analyzer import analyze_market_index
 
 def send_reply(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -49,6 +50,11 @@ def process_updates(updates, run_callback):
             # Run in a separate thread so we don't block the listener
             if run_callback:
                 threading.Thread(target=run_callback, daemon=True).start()
+
+        elif text.startswith("/index"):
+            send_reply(chat_id, "📊 지수 분석을 시작합니다. 잠시만 기다려주세요...")
+            # Run index analysis in a separate thread
+            threading.Thread(target=analyze_market_index, daemon=True).start()
 
 def poll_telegram(run_callback):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"

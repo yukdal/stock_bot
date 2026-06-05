@@ -11,6 +11,7 @@ from quant_filter import run_quant_filtering
 from report_generator import generate_report
 from notifier import send_telegram_message, send_telegram_document
 from bot_listener import start_bot_listener
+from index_analyzer import analyze_market_index
 import threading
 
 # Global lock to prevent concurrent executions
@@ -118,8 +119,14 @@ def main():
     kst_target = datetime.datetime.combine(datetime.date.today(), datetime.time(20, 0)).replace(tzinfo=kst_tz)
     local_target = kst_target.astimezone()
     local_time_str = local_target.strftime("%H:%M")
+
+    # Calculate local system time corresponding to 15:45 KST
+    kst_target_index = datetime.datetime.combine(datetime.date.today(), datetime.time(15, 45)).replace(tzinfo=kst_tz)
+    local_target_index = kst_target_index.astimezone()
+    local_time_str_index = local_target_index.strftime("%H:%M")
     
     print(f"📅 Screener is scheduled to run every day at 20:00 KST (System Local Time: {local_time_str}).")
+    print(f"📅 Index Analysis is scheduled to run every day at 15:45 KST (System Local Time: {local_time_str_index}).")
     print("👉 Use Ctrl+C to terminate.")
     
     # Start bot listener thread in the background
@@ -127,6 +134,8 @@ def main():
     
     # Schedule daily at system local time equivalent to 20:00 KST
     schedule.every().day.at(local_time_str).do(execute_pipeline)
+    # Schedule daily at system local time equivalent to 15:45 KST
+    schedule.every().day.at(local_time_str_index).do(analyze_market_index)
     
     # Keep the script running
     try:
