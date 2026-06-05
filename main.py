@@ -3,6 +3,7 @@ import sys
 import argparse
 import datetime
 import time
+import socket
 import schedule
 import pandas as pd
 from pathlib import Path
@@ -11,11 +12,7 @@ from quant_filter import run_quant_filtering
 from report_generator import generate_report
 from notifier import send_telegram_message, send_telegram_document
 from bot_listener import start_bot_listener
-from index_analyzer import analyze_market_index
-import threading
-
-# Global lock to prevent concurrent executions
-pipeline_lock = threading.Lock()
+from index_closing import execute_index_closing
 
 BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
@@ -30,35 +27,15 @@ def execute_pipeline():
     4. Save report locally
     5. Send Telegram notification
     """
-    if not pipeline_lock.acquire(blocking=False):
-        print("⚠️ Pipeline is already running. Skipping this execution request.")
+    today = datetime.date.today()
+    print(f"\n🔔 [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting Screener Pipeline...")
+    
+    # Skip weekends in standard run
+    if today.weekday() >= 5:
+        print("📅 Today is a weekend. The Korean stock market is closed. Skipping run.")
         return
-
+        
     try:
-        today = datetime.date.today()
-        
-        # 쿨다운 타이머 체크 (중복 실행 방지)
-        cooldown_file = REPORTS_DIR / "last_run_time.txt"
-        if cooldown_file.exists():
-            with open(cooldown_file, "r") as f:
-                last_run_str = f.read().strip()
-            if last_run_str:
-                last_run_time = datetime.datetime.fromisoformat(last_run_str)
-                if (datetime.datetime.now() - last_run_time).total_seconds() < 1800: # 30분 이내
-                    print(f"⚠️ [중복 방지] 마지막 실행 후 30분이 지나지 않았습니다. 중복 실행을 스킵합니다. (Last run: {last_run_str})")
-                    return
-        
-        # 쿨다운 시간 업데이트
-        with open(cooldown_file, "w") as f:
-            f.write(datetime.datetime.now().isoformat())
-            
-        print(f"\n🔔 [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting Screener Pipeline...")
-        
-        # Skip weekends in standard run
-        if today.weekday() >= 5:
-            print("📅 Today is a weekend. The Korean stock market is closed. Skipping run.")
-            return
-            
         # 1. Run Quantitative and DART Financial Filters
         filtered_stocks, analysis_log = run_quant_filtering()
         
@@ -90,9 +67,22 @@ def execute_pipeline():
         
     except Exception as e:
         print(f"❌ Error occurred during pipeline execution: {e}")
-    finally:
-        pipeline_lock.release()
-        print("🔓 Pipeline lock released.")
+
+LOCK_PORT = 18384
+lock_socket = None
+
+def acquire_process_lock():
+    """
+    중복 실행을 방지하기 위해 로컬 소켓을 바인딩합니다.
+    이미 다른 스케줄러 인스턴스가 돌고 있다면 에러와 함께 종료됩니다.
+    """
+    global lock_socket
+    try:
+        lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        lock_socket.bind(('127.0.0.1', LOCK_PORT))
+    except socket.error:
+        print(f"\n❌ [중복 실행 방지] 이미 봇 스케줄러 인스턴스가 실행 중입니다. (포트 {LOCK_PORT} 사용 중) 프로그램을 종료합니다.")
+        sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser(description="K-Stock Quant & DART Swing Screener")
@@ -100,6 +90,11 @@ def main():
         "--now",
         action="store_true",
         help="Run the screening pipeline immediately and exit."
+    )
+    parser.add_argument(
+        "--now-index",
+        action="store_true",
+        help="Run the index closing settlement immediately and exit."
     )
     args = parser.parse_args()
     
@@ -111,36 +106,67 @@ def main():
         execute_pipeline()
         sys.exit(0)
         
+    if args.now_index:
+        print("🏃 Running manual one-off index settlement execution...")
+        execute_index_closing()
+        sys.exit(0)
+        
     # Schedule mode
-    print("🕰️ Starting daily scheduler mode...")
+    # 중복 실행 방지 락 획득 (OCI 및 로컬 겸용)
+    acquire_process_lock()
     
-    # Calculate local system time corresponding to 20:00 KST
-    kst_tz = datetime.timezone(datetime.timedelta(hours=9))
-    kst_target = datetime.datetime.combine(datetime.date.today(), datetime.time(20, 0)).replace(tzinfo=kst_tz)
-    local_target = kst_target.astimezone()
-    local_time_str = local_target.strftime("%H:%M")
-
-    # Calculate local system time corresponding to 15:45 KST
-    kst_target_index = datetime.datetime.combine(datetime.date.today(), datetime.time(15, 45)).replace(tzinfo=kst_tz)
-    local_target_index = kst_target_index.astimezone()
-    local_time_str_index = local_target_index.strftime("%H:%M")
-    
-    print(f"📅 Screener is scheduled to run every day at 20:00 KST (System Local Time: {local_time_str}).")
-    print(f"📅 Index Analysis is scheduled to run every day at 15:45 KST (System Local Time: {local_time_str_index}).")
+    print("🕰️ Starting daily robust scheduler mode...")
+    print("📅 Index Settlement is scheduled to run every Mon-Fri at 15:45 KST.")
+    print("📅 Screener is scheduled to run every Mon-Fri at 20:00 KST.")
     print("👉 Use Ctrl+C to terminate.")
     
+    # Define a wrapper to run jobs in background threads so they don't block the scheduler
+    def run_threaded(job_func):
+        import threading
+        job_thread = threading.Thread(target=job_func)
+        job_thread.daemon = True
+        job_thread.start()
+
     # Start bot listener thread in the background
-    start_bot_listener(run_callback=execute_pipeline)
+    start_bot_listener(screener_callback=execute_pipeline, index_callback=execute_index_closing)
     
-    # Schedule daily at system local time equivalent to 20:00 KST
-    schedule.every().day.at(local_time_str).do(execute_pipeline)
-    # Schedule daily at system local time equivalent to 15:45 KST
-    schedule.every().day.at(local_time_str_index).do(analyze_market_index)
+    # Keep the script running with robust custom time checking
+    kst_tz = datetime.timezone(datetime.timedelta(hours=9))
+    last_run_index = None
+    last_run_screener = None
     
-    # Keep the script running
+    # Catch-up logic on startup
+    now_kst = datetime.datetime.now(kst_tz)
+    current_date = now_kst.date()
+    
+    if now_kst.time() >= datetime.time(15, 45) and current_date.weekday() < 5:
+        print("🚀 Startup Check: Triggering 15:45 KST Index Settlement immediately...")
+        run_threaded(execute_index_closing)
+        last_run_index = current_date
+        
+    if now_kst.time() >= datetime.time(20, 0) and current_date.weekday() < 5:
+        print("🚀 Startup Check: Triggering 20:00 KST Screener immediately...")
+        run_threaded(execute_pipeline)
+        last_run_screener = current_date
+    
     try:
         while True:
-            schedule.run_pending()
+            now_kst = datetime.datetime.now(kst_tz)
+            current_time = now_kst.strftime("%H:%M")
+            current_date = now_kst.date()
+            
+            # 15:45 KST: Index closing settlement
+            if current_time == "15:45" and last_run_index != current_date:
+                print(f"⏰ Triggering 15:45 KST Index Settlement...")
+                run_threaded(execute_index_closing)
+                last_run_index = current_date
+                
+            # 20:00 KST: Screener pipeline
+            if current_time == "20:00" and last_run_screener != current_date:
+                print(f"⏰ Triggering 20:00 KST Screener...")
+                run_threaded(execute_pipeline)
+                last_run_screener = current_date
+                
             time.sleep(10)
     except KeyboardInterrupt:
         print("\n👋 Scheduler terminated by user.")
