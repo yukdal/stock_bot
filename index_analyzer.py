@@ -89,35 +89,45 @@ def analyze_market_index(chat_id=None):
 오늘 장 마감 직후의 한국 및 미국 주요 지수 데이터가 아래와 같습니다.
 
 [시장 데이터]
+{data_for_prompt}
 
-이 데이터를 바탕으로 텔레그램 구독자들에게 보낼 간결하고 명확한 '장 마감 지수 브리핑'을 작성해주세요.
-다음 포맷을 지켜주세요.
-
-[출력 양식]
-📊 장 마감 지수 브리핑
-
-■ KOSPI: [지수] ([등락률])
-■ KOSDAQ: [지수] ([등락률])
-
-💡 시장 요약 및 코멘트:
-- (오늘의 지수 흐름에 대한 애널리스트의 1~2줄 코멘트)
-- (스윙 투자자를 위한 조언 1줄)
+이 데이터를 바탕으로 텔레그램 구독자들에게 보낼 간결하고 명확한 '매크로 한줄평'을 작성해주세요.
+최근의 거시 경제 동향을 반영하여 통찰력 있는 1~3줄의 분석 코멘트만 출력하세요. 
+출력할 때 제목이나 인사말 없이 코멘트 내용만 바로 작성해주세요. (예: - 미국은 끈적한 인플레이션과 연준의 고금리 장기화 우려가, 한국은 반도체 랠리 속...)
 """
+
     try:
         client = genai.Client(api_key=GEMINI_API_KEY)
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=prompt
         )
-        report_text = response.text
-        print("✅ Index analysis report generated successfully.")
+        gemini_comment = response.text.strip()
+        if not gemini_comment.startswith("-"):
+            gemini_comment = "- " + gemini_comment
     except Exception as e:
-        print(f"❌ Error generating index report: {e}")
-        report_text = f"📊 [장 마감 시황 브리핑]\n\n{kospi_str}\n{kosdaq_str}\n\n*(AI 분석을 가져오는데 실패했습니다)*"
+        gemini_comment = f"- AI 코멘트 생성 중 오류가 발생했습니다: {e}"
         
-    # Send to Telegram
-    send_telegram_message(report_text)
-    print("🚀 Index analysis sent to Telegram.")
+    final_message = f"""📊 오후 3시 45분 국내외 주요 지수 마감 정산 (v4.1)
+오늘 정규장 마감 직후 집계된 주요 지수의 위치와 변동성 데이터입니다.
+(데이터 교차검증 완료)
+
+| 지수명 | 당일 종가 (전일대비) | 역사적 최고점 대비 | 직전 전고점 대비 |
+| :--- | :--- | :---: | :---: |
+{table_rows.strip()}
+
+💡 매크로 한줄평 (Gemini Pro 분석)
+{gemini_comment}"""
+
+    if chat_id:
+        send_telegram_message(chat_id, final_message)
+    else:
+        from chat_manager import get_all_chat_ids
+        chat_ids = get_all_chat_ids()
+        for cid in chat_ids:
+            send_telegram_message(cid, final_message)
+            
+    print("✅ Index analysis (v4.1) sent successfully!")
 
 if __name__ == "__main__":
     analyze_market_index()
