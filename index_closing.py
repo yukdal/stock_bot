@@ -14,38 +14,37 @@ def fetch_index_data(ticker):
     """
     특정 지수의 당일/전일 종가, ATH(역사적 최고점), Local High(52주 최고점)를 계산합니다.
     """
+    import pandas as pd
     try:
-        idx = yf.Ticker(ticker)
-        
-        # 최근 5일 데이터로 당일/전일 종가 추출 (휴일 감안)
-        recent_df = idx.history(period="5d")
-        recent_df = recent_df.dropna(subset=['Close'])  # 주말/휴일 빈 데이터 제거
-        if len(recent_df) < 2:
+        # yf.download is often more stable for international indices than yf.Ticker.history
+        df = yf.download(ticker, period="max", progress=False)
+        if df.empty:
             return None
             
-        current_close = recent_df['Close'].iloc[-1].item() if hasattr(recent_df['Close'].iloc[-1], 'item') else recent_df['Close'].iloc[-1]
-        prev_close = recent_df['Close'].iloc[-2].item() if hasattr(recent_df['Close'].iloc[-2], 'item') else recent_df['Close'].iloc[-2]
+        # In newer yfinance, single ticker download might still return MultiIndex columns
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [c[0] for c in df.columns]
+            
+        df = df.dropna(subset=['Close', 'High'])
+        if len(df) < 2:
+            return None
+            
+        recent_df = df.tail(5)
+        current_close = float(recent_df['Close'].iloc[-1].item() if hasattr(recent_df['Close'].iloc[-1], 'item') else recent_df['Close'].iloc[-1])
+        prev_close = float(recent_df['Close'].iloc[-2].item() if hasattr(recent_df['Close'].iloc[-2], 'item') else recent_df['Close'].iloc[-2])
         
-        # 변동 포인트 및 등락률 연산
         point_change = current_close - prev_close
         if prev_close and prev_close > 0:
             pct_change = (point_change / prev_close) * 100
         else:
             pct_change = 0.0
             
-        # 최대 기간 데이터로 최고점 분석
-        max_df = idx.history(period="max")
-        max_df = max_df.dropna(subset=['Close'])  # 빈 데이터 제거
-        if len(max_df) > 0:
-            ath = max_df['High'].max().item() if hasattr(max_df['High'].max(), 'item') else max_df['High'].max()
-            local_df = max_df.tail(252) # 약 52주
-            local_high = local_df['High'].max().item() if hasattr(local_df['High'].max(), 'item') else local_df['High'].max()
-            
-            ath_pct = ((current_close - ath) / ath * 100) if ath > 0 else 0.0
-            local_high_pct = ((current_close - local_high) / local_high * 100) if local_high > 0 else 0.0
-        else:
-            ath_pct = 0.0
-            local_high_pct = 0.0
+        ath = float(df['High'].max().item() if hasattr(df['High'].max(), 'item') else df['High'].max())
+        local_df = df.tail(252) # 약 52주
+        local_high = float(local_df['High'].max().item() if hasattr(local_df['High'].max(), 'item') else local_df['High'].max())
+        
+        ath_pct = ((current_close - ath) / ath * 100) if ath > 0 else 0.0
+        local_high_pct = ((current_close - local_high) / local_high * 100) if local_high > 0 else 0.0
             
         return {
             "current_close": current_close,
