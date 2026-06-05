@@ -19,6 +19,7 @@ def fetch_index_data(ticker):
         
         # 최근 5일 데이터로 당일/전일 종가 추출 (휴일 감안)
         recent_df = idx.history(period="5d")
+        recent_df = recent_df.dropna(subset=['Close'])  # 주말/휴일 빈 데이터 제거
         if len(recent_df) < 2:
             return None
             
@@ -34,6 +35,7 @@ def fetch_index_data(ticker):
             
         # 최대 기간 데이터로 최고점 분석
         max_df = idx.history(period="max")
+        max_df = max_df.dropna(subset=['Close'])  # 빈 데이터 제거
         if len(max_df) > 0:
             ath = max_df['High'].max().item() if hasattr(max_df['High'].max(), 'item') else max_df['High'].max()
             local_df = max_df.tail(252) # 약 52주
