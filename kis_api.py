@@ -117,6 +117,102 @@ def fetch_daily_price(ticker):
         
     return all_data
 
+def fetch_kis_domestic_index(ticker_code="0001", days=5):
+    """
+    Fetch domestic index history from KIS API.
+    ticker_code: "0001" (KOSPI), "1001" (KOSDAQ)
+    TR_ID: FHKUP03500100 (국내업종 기간별추이)
+    """
+    token = get_access_token()
+    if not token:
+        return None
+        
+    url = f"{KIS_URL_BASE}/uapi/domestic-stock/v1/quotations/inquire-daily-indexchartprice"
+    
+    headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "authorization": f"Bearer {token}",
+        "appKey": KIS_APP_KEY,
+        "appSecret": KIS_APP_SECRET,
+        "tr_id": "FHKUP03500100",
+    }
+    
+    today = datetime.date.today()
+    end_date = today.strftime("%Y%m%d")
+    start_date = (today - datetime.timedelta(days=max(days, 10))).strftime("%Y%m%d")
+    
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "U", # 업종
+        "FID_INPUT_ISCD": ticker_code,
+        "FID_INPUT_DATE_1": start_date,
+        "FID_INPUT_DATE_2": end_date,
+        "FID_PERIOD_DIV_CODE": "D"
+    }
+    
+    res = requests.get(url, headers=headers, params=params, timeout=10)
+    if res.status_code == 200:
+        data = res.json()
+        if data.get("rt_cd") == "0":
+            output = data.get("output2", [])
+            if output:
+                # Filter valid rows
+                output = [row for row in output if row.get('stck_bsop_date')]
+                # Reverse to be chronological (oldest first)
+                output.reverse()
+                return output
+        else:
+            print(f"⚠️ KIS Index API Error for {ticker_code}: {data.get('msg1')}")
+            return None
+    return None
+
+def fetch_kis_overseas_index(ticker_code="SPX", days=5):
+    """
+    Fetch overseas index history from KIS API.
+    ticker_code: "SPX" (S&P 500), "NDX" (NASDAQ 100), "DJI" (Dow Jones)
+    TR_ID: FHKST03030000 (해외주식 기간별추이)
+    """
+    token = get_access_token()
+    if not token:
+        return None
+        
+    url = f"{KIS_URL_BASE}/uapi/overseas-price/v1/quotations/dailyprice"
+    
+    headers = {
+        "Content-Type": "application/json; charset=utf-8",
+        "authorization": f"Bearer {token}",
+        "appKey": KIS_APP_KEY,
+        "appSecret": KIS_APP_SECRET,
+        "tr_id": "FHKST03030000",
+    }
+    
+    # KIS Overseas API usually requires different params depending on the market
+    # N: 미국, H: 홍콩, S: 심천, T: 상해, V: 베트남
+    params = {
+        "AUTH": "",
+        "EXCD": "NAS", # NAS or NYS depending on index, but for SPX usually it's handled. We'll try NAS or N.
+        "SYMB": ticker_code,
+        "GUBN": "0", # 0: 일, 1: 주, 2: 월
+        "BYMD": "", # Blank for latest
+        "MODP": "0" # 수정주가
+    }
+    
+    # Wait, the dailyprice API endpoint for overseas might be different.
+    # We will try the standard FHKST03030000
+    res = requests.get(url, headers=headers, params=params, timeout=10)
+    if res.status_code == 200:
+        data = res.json()
+        if data.get("rt_cd") == "0":
+            output = data.get("output2", [])
+            if output:
+                # Filter valid rows
+                output = [row for row in output if row.get('xymd')]
+                output.reverse()
+                return output
+        else:
+            print(f"⚠️ KIS Overseas Index API Error for {ticker_code}: {data.get('msg1')}")
+            return None
+    return None
+
 def fetch_investor_trend(ticker):
     """
     Fetch foreign/institutional investor trend.

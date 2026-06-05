@@ -10,41 +10,108 @@ INDICES = {
     "S&P 500": "^GSPC"
 }
 
-def fetch_index_data(ticker):
+def fetch_index_data(name, ticker):
     """
     특정 지수의 당일/전일 종가, ATH(역사적 최고점), Local High(52주 최고점)를 계산합니다.
+    3중 교차 검증 파이프라인 (KIS -> Naver/Investing -> yfinance) 적용.
     """
     import pandas as pd
+    import yfinance as yf
+    from kis_api import fetch_kis_domestic_index, fetch_kis_overseas_index
+    from scraper import fetch_naver_index_data, fetch_investing_index_data
+    
+    current_close, point_change, pct_change = 0.0, 0.0, 0.0
+    ath, local_high, ath_pct, local_high_pct = 0.0, 0.0, 0.0, 0.0
+    
     try:
-        # yf.download is often more stable for international indices than yf.Ticker.history
+        # 1. Base initialization & ATH / Local High from yfinance
         df = yf.download(ticker, period="max", progress=False)
-        if df.empty:
-            return None
-            
-        # In newer yfinance, single ticker download might still return MultiIndex columns
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = [c[0] for c in df.columns]
             
-        df = df.dropna(subset=['Close', 'High'])
-        if len(df) < 2:
-            return None
+        if not df.empty:
+            df = df.dropna(subset=['Close', 'High'])
             
-        recent_df = df.tail(5)
-        current_close = float(recent_df['Close'].iloc[-1].item() if hasattr(recent_df['Close'].iloc[-1], 'item') else recent_df['Close'].iloc[-1])
-        prev_close = float(recent_df['Close'].iloc[-2].item() if hasattr(recent_df['Close'].iloc[-2], 'item') else recent_df['Close'].iloc[-2])
+        yf_valid = not df.empty and len(df) >= 2
         
-        point_change = current_close - prev_close
-        if prev_close and prev_close > 0:
-            pct_change = (point_change / prev_close) * 100
+        if yf_valid:
+            ath = float(df['High'].max().item() if hasattr(df['High'].max(), 'item') else df['High'].max())
+            local_df = df.tail(252)
+            local_high = float(local_df['High'].max().item() if hasattr(local_df['High'].max(), 'item') else local_df['High'].max())
+            
+            # Default values from yfinance
+            recent_df = df.tail(5)
+            current_close = float(recent_df['Close'].iloc[-1].item() if hasattr(recent_df['Close'].iloc[-1], 'item') else recent_df['Close'].iloc[-1])
+            prev_close = float(recent_df['Close'].iloc[-2].item() if hasattr(recent_df['Close'].iloc[-2], 'item') else recent_df['Close'].iloc[-2])
+            point_change = current_close - prev_close
+            pct_change = (point_change / prev_close * 100) if prev_close > 0 else 0.0
+            
+            # Anomaly filter for yfinance bug (e.g., KOSPI returning 8600+)
+            if name == "KOSPI" and current_close > 5000:
+                current_close, point_change, pct_change = 0.0, 0.0, 0.0
+        
+        # 2. Cross Validation Pipeline
+        def update_from_dict(d):
+            nonlocal current_close, point_change, pct_change
+            if d and d.get("close") and d["close"] > 0:
+                current_close = d["close"]
+                point_change = d.get("change", 0.0)
+                pct_change = d.get("change_pct", 0.0)
+                return True
+            return False
+            
+        cv_success = False
+        
+        if name in ["KOSPI", "KOSDAQ"]:
+            # Priority 1: KIS API
+            kis_code = "0001" if name == "KOSPI" else "1001"
+            kis_data = fetch_kis_domestic_index(kis_code, days=5)
+            if kis_data and len(kis_data) >= 2:
+                try:
+                    latest = float(kis_data[-1].get("bstp_nmix_prpr", kis_data[-1].get("stck_bsop_prpr", 0)))
+                    prev = float(kis_data[-2].get("bstp_nmix_prpr", kis_data[-2].get("stck_bsop_prpr", 0)))
+                    if latest > 0 and prev > 0:
+                        cv_success = update_from_dict({
+                            "close": latest,
+                            "change": latest - prev,
+                            "change_pct": (latest - prev) / prev * 100
+                        })
+                except: pass
+                
+            # Priority 2: Naver Finance
+            if not cv_success:
+                cv_success = update_from_dict(fetch_naver_index_data(name))
+                
+            # Priority 3: Investing.com
+            if not cv_success:
+                cv_success = update_from_dict(fetch_investing_index_data(name))
+                
+        elif name == "S&P 500":
+            # Priority 1: KIS Overseas API
+            kis_data = fetch_kis_overseas_index("SPX", days=5)
+            if kis_data and len(kis_data) >= 2:
+                try:
+                    # KIS overseas index keys
+                    latest = float(kis_data[-1].get("clos", kis_data[-1].get("ovrs_nmix_prpr", 0)))
+                    prev = float(kis_data[-2].get("clos", kis_data[-2].get("ovrs_nmix_prpr", 0)))
+                    if latest > 0 and prev > 0:
+                        cv_success = update_from_dict({
+                            "close": latest,
+                            "change": latest - prev,
+                            "change_pct": (latest - prev) / prev * 100
+                        })
+                except: pass
+                
+            # Priority 2: Investing.com
+            if not cv_success:
+                cv_success = update_from_dict(fetch_investing_index_data("SPX"))
+                
+        # 3. Final metric calculation
+        if current_close > 0:
+            ath_pct = ((current_close - ath) / ath * 100) if ath > 0 else 0.0
+            local_high_pct = ((current_close - local_high) / local_high * 100) if local_high > 0 else 0.0
         else:
-            pct_change = 0.0
-            
-        ath = float(df['High'].max().item() if hasattr(df['High'].max(), 'item') else df['High'].max())
-        local_df = df.tail(252) # 약 52주
-        local_high = float(local_df['High'].max().item() if hasattr(local_df['High'].max(), 'item') else local_df['High'].max())
-        
-        ath_pct = ((current_close - ath) / ath * 100) if ath > 0 else 0.0
-        local_high_pct = ((current_close - local_high) / local_high * 100) if local_high > 0 else 0.0
+            return None
             
         return {
             "current_close": current_close,
@@ -54,7 +121,7 @@ def fetch_index_data(ticker):
             "local_high_pct": local_high_pct
         }
     except Exception as e:
-        print(f"❌ Error fetching index data for {ticker}: {e}")
+        print(f"❌ Error fetching index data for {name} ({ticker}): {e}")
         return None
 
 def generate_index_macro_comment():
@@ -101,7 +168,7 @@ def execute_index_closing(chat_id=None):
     report_lines.append("| :--- | :--- | :---: | :---: |")
     
     for name, ticker in INDICES.items():
-        data = fetch_index_data(ticker)
+        data = fetch_index_data(name, ticker)
         if data:
             c_close = f"{data['current_close']:,.2f}"
             pt_chg = format_number(data['point_change'], is_pct=False)

@@ -158,6 +158,82 @@ def fetch_dart_financials(api_key, corp_code, year=2025):
         print(f"❌ Exception occurred during DART API call: {e}")
         return None
 
+def fetch_naver_index_data(market_type="KOSPI"):
+    """
+    Scrape real-time index data from Naver Finance.
+    market_type: 'KOSPI' or 'KOSDAQ'
+    """
+    code = "KOSPI" if market_type.upper() == "KOSPI" else "KOSDAQ"
+    url = f"https://finance.naver.com/sise/sise_index.naver?code={code}"
+    
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=10)
+        response.encoding = "euc-kr"
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "lxml")
+            now_value_el = soup.find(id="now_value")
+            change_el = soup.find(id="change_value_and_rate")
+            
+            if now_value_el and change_el:
+                close_price = float(now_value_el.text.replace(",", "").strip())
+                # Example change_el text: '7.82 상승 (0.30%)' or '10.12 하락 (-0.40%)'
+                txt = change_el.text.strip()
+                tokens = txt.split()
+                if len(tokens) >= 3:
+                    pt_chg = float(tokens[0].replace(",", ""))
+                    if "하락" in tokens[1]:
+                        pt_chg = -pt_chg
+                    
+                    pct_str = tokens[2].replace("(", "").replace(")", "").replace("%", "").replace("+", "")
+                    pct_chg = float(pct_str)
+                    
+                    return {
+                        "close": close_price,
+                        "change": pt_chg,
+                        "change_pct": pct_chg
+                    }
+        return None
+    except Exception as e:
+        print(f"⚠️ Naver Index Scrape Error for {code}: {e}")
+        return None
+
+def fetch_investing_index_data(ticker="SPX"):
+    """
+    Scrape index data from Investing.com (e.g. S&P 500).
+    Note: Investing.com has Cloudflare anti-bot, so this may return None.
+    """
+    path_map = {
+        "SPX": "indices/us-spx-500",
+        "^GSPC": "indices/us-spx-500",
+        "KOSPI": "indices/kospi",
+        "KOSDAQ": "indices/kosdaq"
+    }
+    path = path_map.get(ticker, f"indices/{ticker.lower()}")
+    url = f"https://kr.investing.com/{path}"
+    
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=10)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "lxml")
+            price_el = soup.find(attrs={"data-test": "instrument-price-last"})
+            chg_el = soup.find(attrs={"data-test": "instrument-price-change"})
+            pct_el = soup.find(attrs={"data-test": "instrument-price-change-percent"})
+            
+            if price_el and chg_el and pct_el:
+                close_price = float(price_el.text.replace(",", "").strip())
+                pt_chg = float(chg_el.text.replace(",", "").replace("+", "").strip())
+                pct_str = pct_el.text.replace("(", "").replace(")", "").replace("%", "").replace("+", "").strip()
+                pct_chg = float(pct_str)
+                
+                return {
+                    "close": close_price,
+                    "change": pt_chg,
+                    "change_pct": pct_chg
+                }
+        return None
+    except Exception as e:
+        return None
+
 def fetch_naver_rise_list(market_type="kospi"):
     """
     Scrape the daily rise list page from Naver Finance.
