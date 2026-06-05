@@ -4,59 +4,91 @@ from google import genai
 from config import GEMINI_API_KEY, GEMINI_MODEL
 from notifier import send_telegram_message
 
-def get_market_data(ticker):
+def get_index_stats(ticker, name):
     try:
-        data = yf.download(ticker, period="5d")
-        if data.empty:
+        # Fetch max history to get all-time high
+        hist = yf.download(ticker, period="max")
+        if hist.empty:
             return None
         
-        # Get latest and previous day to calculate change
-        today_close = float(data['Close'].iloc[-1].item() if hasattr(data['Close'].iloc[-1], 'item') else data['Close'].iloc[-1])
-        prev_close = float(data['Close'].iloc[-2].item() if hasattr(data['Close'].iloc[-2], 'item') else data['Close'].iloc[-2])
+        # Current and previous close
+        current_close = float(hist['Close'].iloc[-1].item() if hasattr(hist['Close'].iloc[-1], 'item') else hist['Close'].iloc[-1])
+        prev_close = float(hist['Close'].iloc[-2].item() if hasattr(hist['Close'].iloc[-2], 'item') else hist['Close'].iloc[-2])
         
-        change = today_close - prev_close
-        change_pct = (change / prev_close) * 100
+        # Point change and pct change
+        change_pt = current_close - prev_close
+        change_pct = (change_pt / prev_close) * 100
+        
+        # Direction arrow
+        if change_pt > 0:
+            arrow = f"▲{change_pt:,.2f}pt, +{change_pct:.2f}%"
+        elif change_pt < 0:
+            arrow = f"▼{abs(change_pt):,.2f}pt, {change_pct:.2f}%"
+        else:
+            arrow = f"- 0.00pt, 0.00%"
+            
+        # All time high
+        ath = float(hist['High'].max().item() if hasattr(hist['High'].max(), 'item') else hist['High'].max())
+        ath_diff = ((current_close - ath) / ath) * 100
+        
+        # 52-week high (approximate for '직전 전고점 대비')
+        hist_1y = hist.tail(252)
+        if not hist_1y.empty:
+            local_high = float(hist_1y['High'].max().item() if hasattr(hist_1y['High'].max(), 'item') else hist_1y['High'].max())
+        else:
+            local_high = ath
+            
+        local_diff = ((current_close - local_high) / local_high) * 100
         
         return {
-            "close": today_close,
-            "change": change,
-            "change_pct": change_pct
+            "name": name,
+            "close": current_close,
+            "arrow": arrow,
+            "ath_diff": f"{ath_diff:+.2f}%",
+            "local_diff": f"{local_diff:+.2f}%"
         }
     except Exception as e:
-        print(f"⚠️ Error fetching index data for {ticker}: {e}")
+        print(f"Error fetching {ticker}: {e}")
         return None
 
-def analyze_market_index():
-    print(f"\n📈 [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting Index Analysis...")
+def analyze_market_index(chat_id=None):
+    print(f"\n📈 [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting Index Analysis (v4.1)...")
     
-    # Skip weekends
-    if datetime.date.today().weekday() >= 5:
-        print("📅 Today is a weekend. The Korean stock market is closed. Skipping index analysis.")
-        return
-    
-    kospi = get_market_data("^KS11")
-    kosdaq = get_market_data("^KQ11")
-    
-    # Fallback if no data
-    kospi_str = f"KOSPI: {kospi['close']:.2f} ({kospi['change']:+.2f}, {kospi['change_pct']:+.2f}%)" if kospi else "KOSPI: 데이터 없음"
-    kosdaq_str = f"KOSDAQ: {kosdaq['close']:.2f} ({kosdaq['change']:+.2f}, {kosdaq['change_pct']:+.2f}%)" if kosdaq else "KOSDAQ: 데이터 없음"
-    
-    print(kospi_str)
-    print(kosdaq_str)
-    
-    # Check Gemini API Key
-    if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY":
-        report_text = f"📊 [장 마감 시황 브리핑]\n\n{kospi_str}\n{kosdaq_str}\n\n*Gemini API Key가 설정되지 않아 간략 브리핑만 제공됩니다.*"
-        send_telegram_message(report_text)
+    # Skip weekends for scheduled run, but allow if manual (/index)
+    if chat_id is None and datetime.date.today().weekday() >= 5:
+        print("Skipping index analysis on weekends.")
         return
         
+    indices = [
+        ("^KS11", "KOSPI"),
+        ("^KQ11", "KOSDAQ"),
+        ("^GSPC", "S&P 500")
+    ]
+    
+    stats = []
+    for ticker, name in indices:
+        res = get_index_stats(ticker, name)
+        if res:
+            stats.append(res)
+            
+    if not stats:
+        error_msg = "❌ 지수 데이터를 가져오는데 실패했습니다."
+        if chat_id:
+            send_telegram_message(chat_id, error_msg)
+        print(error_msg)
+        return
+        
+    table_rows = ""
+    data_for_prompt = ""
+    for s in stats:
+        table_rows += f"| {s['name']} | {s['close']:,.2f} ({s['arrow']}) | {s['ath_diff']} | {s['local_diff']} |\n"
+        data_for_prompt += f"{s['name']}: 종가 {s['close']:,.2f}, {s['arrow']}, 최고점대비 {s['ath_diff']}\n"
+        
     prompt = f"""
-당신은 대한민국 주식 시장 전문 애널리스트입니다.
-오늘 장 마감 직후의 한국 시장 지수 데이터가 아래와 같습니다.
+당신은 거시경제 및 주식 시장 전문 애널리스트입니다.
+오늘 장 마감 직후의 한국 및 미국 주요 지수 데이터가 아래와 같습니다.
 
 [시장 데이터]
-{kospi_str}
-{kosdaq_str}
 
 이 데이터를 바탕으로 텔레그램 구독자들에게 보낼 간결하고 명확한 '장 마감 지수 브리핑'을 작성해주세요.
 다음 포맷을 지켜주세요.
