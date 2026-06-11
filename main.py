@@ -71,18 +71,85 @@ def execute_pipeline():
 LOCK_PORT = 18384
 lock_socket = None
 
+def kill_zombie_bot(port):
+    """
+    Finds the process using the specified port and kills it.
+    Returns True if a process was killed, False otherwise.
+    """
+    try:
+        import psutil
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                for conn in proc.connections(kind='inet'):
+                    if conn.laddr.port == port:
+                        print(f"⚠️ [복구] 포트 {port}를 사용 중인 좀비 프로세스 발견: PID {proc.info['pid']} ({proc.info['name']})")
+                        proc.kill()
+                        proc.wait(timeout=3)
+                        return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+    except ImportError:
+        print("⚠️ psutil 모듈이 없습니다. OS 명령어를 사용하여 종료를 시도합니다.")
+        import subprocess
+        import os
+        if os.name == 'nt':
+            try:
+                output = subprocess.check_output(f"netstat -ano | findstr :{port}", shell=True).decode()
+                if output:
+                    for line in output.strip().split('\n'):
+                        if str(port) in line:
+                            pid = line.strip().split()[-1]
+                            print(f"⚠️ [복구] 포트 {port}를 사용 중인 좀비 프로세스 발견 (Windows): PID {pid}")
+                            subprocess.run(f"taskkill /PID {pid} /F", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            return True
+            except Exception as e:
+                print(f"❌ OS 명령어로 기존 프로세스 종료 실패: {e}")
+        else:
+            try:
+                output = subprocess.check_output(f"lsof -t -i :{port}", shell=True).decode()
+                if output:
+                    pid = output.strip()
+                    print(f"⚠️ [복구] 포트 {port}를 사용 중인 좀비 프로세스 발견 (Linux/Mac): PID {pid}")
+                    subprocess.run(f"kill -9 {pid}", shell=True)
+                    return True
+            except Exception:
+                try:
+                    subprocess.run(f"fuser -k {port}/tcp", shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    print(f"⚠️ [복구] 포트 {port}를 fuser로 종료했습니다.")
+                    return True
+                except Exception as e:
+                    print(f"❌ OS 명령어로 기존 프로세스 종료 실패: {e}")
+    return False
+
 def acquire_process_lock():
     """
     중복 실행을 방지하기 위해 로컬 소켓을 바인딩합니다.
-    이미 다른 스케줄러 인스턴스가 돌고 있다면 에러와 함께 종료됩니다.
+    이미 다른 스케줄러 인스턴스가 돌고 있다면 좀비 봇으로 간주하고 강제 종료 후 시스템을 복구합니다.
     """
     global lock_socket
     try:
         lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         lock_socket.bind(('127.0.0.1', LOCK_PORT))
     except socket.error:
-        print(f"\n❌ [중복 실행 방지] 이미 봇 스케줄러 인스턴스가 실행 중입니다. (포트 {LOCK_PORT} 사용 중) 프로그램을 종료합니다.")
-        sys.exit(1)
+        print(f"\n⚠️ [중복 실행 감지] 포트 {LOCK_PORT}를 이미 다른 인스턴스가 사용 중입니다.")
+        print("🔄 좀비 프로세스 종료 및 시스템 복구를 시도합니다...")
+        
+        killed = kill_zombie_bot(LOCK_PORT)
+        
+        if killed:
+            print("✅ 기존 좀비 프로세스를 성공적으로 종료했습니다. 3초 대기 후 재시작합니다...")
+            time.sleep(3)
+            try:
+                lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                lock_socket.bind(('127.0.0.1', LOCK_PORT))
+                print("✅ 성공적으로 포트를 바인딩하고 시스템을 복구했습니다!")
+                return
+            except socket.error:
+                print("❌ 좀비 프로세스를 종료했으나 여전히 포트 바인딩에 실패했습니다. 프로그램을 종료합니다.")
+                sys.exit(1)
+        else:
+            print("❌ 종료할 프로세스를 찾지 못했거나 권한이 부족합니다. 프로그램을 종료합니다.")
+            sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser(description="K-Stock Quant & DART Swing Screener")
