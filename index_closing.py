@@ -12,11 +12,25 @@ INDICES = {
 
 def fetch_index_data(name, ticker):
     """
-    특정 지수의 당일/전일 종가, ATH(역사적 최고점), Local High(52주 최고점)를 계산합니다.
     """
+    특정 지수의 당일/전일 종가 및 직전 전고점(Swing High)을 계산합니다.
+    """
+    def find_recent_swing_high(highs_series):
+        prices = highs_series.values
+        n = len(prices)
+        if n < 2: return highs_series.max()
+            
+        window = 15 # 15일(약 3주) 기준 앞뒤로 가장 높은 가격을 '전고점'으로 정의
+        for i in range(n-1, -1, -1):
+            start = max(0, i - window)
+            end = min(n, i + window + 1)
+            if prices[i] == max(prices[start:end]):
+                return prices[i]
+        return prices.max()
+        
     try:
         idx = yf.Ticker(ticker)
-        max_df = idx.history(period="1y") # 52주 데이터만 가져오도록 최적화
+        max_df = idx.history(period="5y") # 52주 제한 없이 넉넉하게 5년치에서 최근 고점 탐색
         
         if name in ["KOSPI", "KOSDAQ"]:
             # Fetch real-time data from Naver Finance because Yahoo is 1-day delayed at 15:45 KST
@@ -37,10 +51,10 @@ def fetch_index_data(name, ticker):
             point_change = current_close - prev_close
             pct_change = (point_change / prev_close) * 100 if prev_close > 0 else 0.0
             
-        # 최대 기간 데이터로 최고점 분석
+        # 최대 기간 데이터로 최근 스윙 하이(전고점) 분석
         if len(max_df) > 0:
             max_df = max_df.dropna(subset=['High'])
-            local_high = max_df['High'].max() # 1y 데이터의 최고점이 52주 최고점
+            local_high = find_recent_swing_high(max_df['High']) # 52주 제한 없는 진짜 직전 전고점
             
             local_high_pct = ((current_close - local_high) / local_high * 100) if local_high > 0 else 0.0
         else:
@@ -106,7 +120,7 @@ def execute_index_closing():
         report_lines.append("📊 [오후 3시 45분 국내외 주요 지수 마감 정산 (v4.1)]")
         report_lines.append("오늘 정규장 마감 직후 집계된 주요 지수의 위치와 변동성 데이터입니다. (데이터 교차검증 완료)\n")
         
-        report_lines.append("| 지수명 | 당일 종가 (전일대비) | 직전 전고점(52주) 대비 |")
+        report_lines.append("| 지수명 | 당일 종가 (전일대비) | 직전 전고점 대비 |")
         report_lines.append("| :--- | :--- | :---: |")
         
         for name, ticker in INDICES.items():
