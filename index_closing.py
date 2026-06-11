@@ -16,7 +16,7 @@ def fetch_index_data(name, ticker):
     """
     try:
         idx = yf.Ticker(ticker)
-        max_df = idx.history(period="max")
+        max_df = idx.history(period="1y") # 52주 데이터만 가져오도록 최적화
         
         if name in ["KOSPI", "KOSDAQ"]:
             # Fetch real-time data from Naver Finance because Yahoo is 1-day delayed at 15:45 KST
@@ -40,21 +40,16 @@ def fetch_index_data(name, ticker):
         # 최대 기간 데이터로 최고점 분석
         if len(max_df) > 0:
             max_df = max_df.dropna(subset=['High'])
-            ath = max_df['High'].max()
-            local_df = max_df.tail(252) # 약 52주
-            local_high = local_df['High'].max()
+            local_high = max_df['High'].max() # 1y 데이터의 최고점이 52주 최고점
             
-            ath_pct = ((current_close - ath) / ath * 100) if ath > 0 else 0.0
             local_high_pct = ((current_close - local_high) / local_high * 100) if local_high > 0 else 0.0
         else:
-            ath_pct = 0.0
             local_high_pct = 0.0
             
         return {
             "current_close": current_close,
             "point_change": point_change,
             "pct_change": pct_change,
-            "ath_pct": ath_pct,
             "local_high_pct": local_high_pct
         }
     except Exception as e:
@@ -111,8 +106,8 @@ def execute_index_closing():
         report_lines.append("📊 [오후 3시 45분 국내외 주요 지수 마감 정산 (v4.1)]")
         report_lines.append("오늘 정규장 마감 직후 집계된 주요 지수의 위치와 변동성 데이터입니다. (데이터 교차검증 완료)\n")
         
-        report_lines.append("| 지수명 | 당일 종가 (전일대비) | 역사적 최고점 대비 | 직전 전고점 대비 |")
-        report_lines.append("| :--- | :--- | :---: | :---: |")
+        report_lines.append("| 지수명 | 당일 종가 (전일대비) | 직전 전고점(52주) 대비 |")
+        report_lines.append("| :--- | :--- | :---: |")
         
         for name, ticker in INDICES.items():
             data = fetch_index_data(name, ticker)
@@ -121,12 +116,11 @@ def execute_index_closing():
                 pt_chg = format_number(data['point_change'], is_pct=False)
                 pct_chg = format_number(data['pct_change'], is_pct=True)
                 
-                ath_chg = format_number(data['ath_pct'], is_pct=True)
                 lh_chg = format_number(data['local_high_pct'], is_pct=True)
                 
-                report_lines.append(f"| **{name}** | {c_close} ({pt_chg}pt, {pct_chg}) | {ath_chg} | {lh_chg} |")
+                report_lines.append(f"| **{name}** | {c_close} ({pt_chg}pt, {pct_chg}) | {lh_chg} |")
             else:
-                report_lines.append(f"| **{name}** | 데이터 수집 지연 | - | - |")
+                report_lines.append(f"| **{name}** | 데이터 수집 지연 | - |")
                 
         comment = generate_index_macro_comment()
         report_lines.append("\n💡 **매크로 한줄평 (Gemini Pro 분석)**")
