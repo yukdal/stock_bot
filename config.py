@@ -15,6 +15,8 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 KIS_APP_KEY = os.getenv("KIS_APP_KEY")
 KIS_APP_SECRET = os.getenv("KIS_APP_SECRET")
 KIS_ENV = os.getenv("KIS_ENV", "PROD")
+KIWOOM_APP_KEY = os.getenv("KIWOOM_APP_KEY")
+KIWOOM_APP_SECRET = os.getenv("KIWOOM_APP_SECRET")
 
 # Model Configuration
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -44,6 +46,10 @@ def validate_config(test_mode=False):
         missing.append("KIS_APP_KEY")
     if not KIS_APP_SECRET:
         missing.append("KIS_APP_SECRET")
+    if not KIWOOM_APP_KEY:
+        missing.append("KIWOOM_APP_KEY")
+    if not KIWOOM_APP_SECRET:
+        missing.append("KIWOOM_APP_SECRET")
         
     if missing:
         msg = f"Missing environment variables in .env: {', '.join(missing)}"

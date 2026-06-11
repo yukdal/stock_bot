@@ -57,64 +57,83 @@ def get_access_token():
 def fetch_daily_price(ticker):
     """
     Fetch daily price history for technical indicators (MA1000, 5/20/60, volume ratio)
-    Returns a dataframe-like structure or list of dicts.
+    Combines Kiwoom API (latest 600 days) and KIS API (older 600 days) for optimal speed.
     """
-    token = get_access_token()
-    if not token:
-        return None
+    all_data = []
+    
+    # 1. Try to fetch latest ~600 days from Kiwoom
+    try:
+        from kiwoom_api import fetch_kiwoom_daily_price
+        kiwoom_data = fetch_kiwoom_daily_price(ticker)
+        if kiwoom_data:
+            all_data.extend(kiwoom_data)
+            print(f"   -> Fetched {len(kiwoom_data)} days from Kiwoom API.")
+    except Exception as e:
+        print(f"⚠️ Failed to fetch from Kiwoom API: {e}")
         
-    url = f"{KIS_URL_BASE}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
-    
-    headers = {
-        "Content-Type": "application/json; charset=utf-8",
-        "authorization": f"Bearer {token}",
-        "appKey": KIS_APP_KEY,
-        "appSecret": KIS_APP_SECRET,
-        "tr_id": "FHKST03010100", # 주식당일추이 API or 일자별 시세
-    }
-    
-    # Actually, for 1000 days we need inquire-daily-itemchartprice (국내주식기간별시세)
-    # TR_ID: FHKST03010100 (국내주식기간별시세)
-    
+    # Set the end_date for KIS API
     today = datetime.date.today()
     end_date = today.strftime("%Y%m%d")
     
-    # We need to fetch 1000 days, API returns 100 at a time
-    all_data = []
+    # If we got data from Kiwoom, start fetching from the day before Kiwoom's oldest data
+    if all_data:
+        last_date_str = all_data[-1].get("stck_bsop_date")
+        if last_date_str:
+            end_date = (datetime.datetime.strptime(last_date_str, "%Y%m%d") - datetime.timedelta(days=1)).strftime("%Y%m%d")
+            
+    # Calculate how many more chunks (100 days each) we need to reach ~1200 days total
+    # If Kiwoom gave us 600, we need about 6 chunks from KIS. If 0, we need 12.
+    remaining_days = max(0, 1200 - len(all_data))
+    chunks_needed = (remaining_days // 100) + 1 if remaining_days > 0 else 0
     
-    for i in range(12): # 12 * 100 = 1200 trading days
-        start_date = (datetime.datetime.strptime(end_date, "%Y%m%d") - datetime.timedelta(days=120)).strftime("%Y%m%d")
-        
-        params = {
-            "FID_COND_MRKT_DIV_CODE": "J", # 주식
-            "FID_INPUT_ISCD": ticker,
-            "FID_INPUT_DATE_1": start_date,
-            "FID_INPUT_DATE_2": end_date,
-            "FID_PERIOD_DIV_CODE": "D", # 일봉
-            "FID_ORG_ADJ_PRC": "0" # 수정주가 반영
+    if chunks_needed > 0:
+        token = get_access_token()
+        if not token:
+            print("⚠️ Failed to get KIS token.")
+            return all_data
+            
+        url = f"{KIS_URL_BASE}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "authorization": f"Bearer {token}",
+            "appKey": KIS_APP_KEY,
+            "appSecret": KIS_APP_SECRET,
+            "tr_id": "FHKST03010100", # 주식당일추이 API or 일자별 시세
         }
         
-        res = requests.get(url, headers=headers, params=params, timeout=10)
-        if res.status_code == 200:
-            data = res.json()
-            if data.get("rt_cd") == "0":
-                chunk = data.get("output2", [])
-                if not chunk:
-                    break
-                all_data.extend(chunk)
-                # Next end_date is the day before the last fetched date
-                last_date_str = chunk[-1].get("stck_bsop_date")
-                if last_date_str:
-                    end_date = (datetime.datetime.strptime(last_date_str, "%Y%m%d") - datetime.timedelta(days=1)).strftime("%Y%m%d")
+        for i in range(chunks_needed):
+            start_date = (datetime.datetime.strptime(end_date, "%Y%m%d") - datetime.timedelta(days=120)).strftime("%Y%m%d")
+            
+            params = {
+                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_INPUT_ISCD": ticker,
+                "FID_INPUT_DATE_1": start_date,
+                "FID_INPUT_DATE_2": end_date,
+                "FID_PERIOD_DIV_CODE": "D",
+                "FID_ORG_ADJ_PRC": "0" 
+            }
+            
+            res = requests.get(url, headers=headers, params=params, timeout=10)
+            if res.status_code == 200:
+                data = res.json()
+                if data.get("rt_cd") == "0":
+                    chunk = data.get("output2", [])
+                    if not chunk:
+                        break
+                    all_data.extend(chunk)
+                    
+                    last_date_str = chunk[-1].get("stck_bsop_date")
+                    if last_date_str:
+                        end_date = (datetime.datetime.strptime(last_date_str, "%Y%m%d") - datetime.timedelta(days=1)).strftime("%Y%m%d")
+                    else:
+                        break
                 else:
                     break
             else:
                 break
-        else:
-            break
+                
+            time.sleep(0.1)
             
-        time.sleep(0.1) # Rate limit protection
-        
     return all_data
 
 def fetch_investor_trend(ticker):
