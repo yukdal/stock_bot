@@ -29,7 +29,7 @@ def fetch_index_data(name, ticker):
             pct_change = float(data['fluctuationsRatio'].replace(',', ''))
         else:
             # S&P 500 uses yfinance (US market already closed)
-            recent_df = idx.history(period="5d")
+            recent_df = idx.history(period="5d").dropna(subset=['Close'])
             if len(recent_df) < 2:
                 return None
             current_close = recent_df['Close'].iloc[-1]
@@ -39,6 +39,7 @@ def fetch_index_data(name, ticker):
             
         # 최대 기간 데이터로 최고점 분석
         if len(max_df) > 0:
+            max_df = max_df.dropna(subset=['High'])
             ath = max_df['High'].max()
             local_df = max_df.tail(252) # 약 52주
             local_high = local_df['High'].max()
