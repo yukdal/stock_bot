@@ -17,7 +17,7 @@ def build_prompt(filtered_stocks):
         # Format news
         news_str = ""
         for n_idx, n in enumerate(s["news"], 1):
-            news_str += f"   - [{n['source']}] {n['title']}\n"
+            news_str += f"   - [{n['source']}] {n['title']} (링크: {n['link']})\n"
             
         ma1000_val = f"{s['ma_1000']:,.0f}원" if s['ma_1000'] else "N/A"
         ma_status = "위" if "ABOVE" in s['price_vs_ma_1000'] else "아래"
@@ -86,7 +86,7 @@ def build_prompt(filtered_stocks):
 - 부채비율: {{부채비율}} < 유보율: {{유보율}} -> [적격]
 
 📰 관련 핵심 뉴스 (Gemini 요약)
-- "{{뉴스 데이터에서 당일 급등 원인이 된 가장 중요한 핵심 헤드라인 1개 발췌 및 요약}}" (출처: {{해당 뉴스의 실제 출처}})
+- "[{{뉴스 데이터에서 당일 급등 원인이 된 가장 중요한 핵심 헤드라인 1개 발췌 및 요약}}]({{해당 뉴스의 실제 원본 링크}})" (출처: {{해당 뉴스의 실제 출처}})
 --------------------------------------
 
 📊 [필터링 통과 종목 전체 요약]
@@ -133,9 +133,11 @@ def generate_mock_report(filtered_stocks):
         
         news_line = "관련 뉴스 수집 불가"
         news_source = "N/A"
+        news_link = ""
         if s["news"]:
             news_line = s["news"][0]["title"]
             news_source = s["news"][0]["source"]
+            news_link = s["news"][0]["link"]
             
         buy_price = int(s['close'] * 0.98)
         sell_price = int(s['close'] * 1.10)
@@ -162,7 +164,10 @@ def generate_mock_report(filtered_stocks):
         report += f"- 부채비율: {s['debt_ratios_3y'][0]:.1f}% < 유보율: {s['reserve_ratios_3y'][0]:.1f}% -> [적격]\n\n"
         
         report += "📰 관련 핵심 뉴스 (Gemini 요약)\n"
-        report += f"- \"{news_line}\" (출처: {news_source})\n"
+        if news_link:
+            report += f"- \"[{news_line}]({news_link})\" (출처: {news_source})\n"
+        else:
+            report += f"- \"{news_line}\" (출처: {news_source})\n"
         report += "--------------------------------------\n\n"
         
     report += "📊 [필터링 통과 종목 전체 요약]\n"
