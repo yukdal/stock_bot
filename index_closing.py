@@ -12,7 +12,6 @@ INDICES = {
 
 def fetch_index_data(name, ticker):
     """
-    """
     특정 지수의 당일/전일 종가 및 직전 전고점(Swing High)을 계산합니다.
     """
     def find_recent_swing_high(highs_series):
