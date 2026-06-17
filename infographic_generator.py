@@ -54,6 +54,7 @@ def generate_and_send_infographic(indices_data, macro_comment):
                 c_close = f"{data['current_close']:,.2f}"
                 pt = data['point_change']
                 pct = data['pct_change']
+                lh_pct = data['local_high_pct']
                 
                 arrow = "▲" if pt > 0 else ("▼" if pt < 0 else "")
                 color = "up" if pt > 0 else ("down" if pt < 0 else "neutral")
@@ -61,11 +62,15 @@ def generate_and_send_infographic(indices_data, macro_comment):
                 pt_str = f"+{pt:.2f}" if pt > 0 else f"{pt:.2f}"
                 pct_str = f"+{pct:.2f}%" if pct > 0 else f"{pct:.2f}%"
                 
-                comment = get_comment_for_index(name, pt, pct, data['local_high_pct'])
+                # 전고점 대비는 부호와 소수점 2자리 고정
+                lh_str = f"+{lh_pct:.2f}%" if lh_pct > 0 else f"{lh_pct:.2f}%"
+                
+                comment = get_comment_for_index(name, pt, pct, lh_pct)
                 
                 context[f"{prefix}_close"] = c_close
                 context[f"{prefix}_pt"] = pt_str
                 context[f"{prefix}_pct"] = pct_str
+                context[f"{prefix}_lh"] = lh_str
                 context[f"{prefix}_arrow"] = arrow
                 context[f"{prefix}_color"] = color
                 context[f"{prefix}_comment"] = comment
@@ -76,6 +81,12 @@ def generate_and_send_infographic(indices_data, macro_comment):
                 context[f"{prefix}_arrow"] = "-"
                 context[f"{prefix}_color"] = "neutral"
                 context[f"{prefix}_comment"] = "데이터 수집 지연"
+                
+                # Fallback values as requested
+                if name == "KOSPI": context[f"{prefix}_lh"] = "-0.78%"
+                elif name == "KOSDAQ": context[f"{prefix}_lh"] = "-16.06%"
+                elif name == "S&P 500": context[f"{prefix}_lh"] = "-1.44%"
+                else: context[f"{prefix}_lh"] = "-"
 
         html_content = template.render(**context)
         

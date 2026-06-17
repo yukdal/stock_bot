@@ -131,6 +131,18 @@
         .down { color: #3B82F6; } /* Blue for down */
         .neutral { color: #94A3B8; }
 
+        .local-high {
+            font-size: 15px;
+            font-weight: 500;
+            color: #94A3B8;
+            margin-top: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
         .comment-box {
             margin-top: auto;
             background: rgba(0, 0, 0, 0.2);
@@ -200,6 +212,9 @@
                     <div class="change {{ kospi_color }}">
                         {{ kospi_arrow }} {{ kospi_pt }}pt ({{ kospi_pct }})
                     </div>
+                    <div class="local-high">
+                        전고점 대비: <strong>{{ kospi_lh }}</strong>
+                    </div>
                 </div>
                 <div class="comment-box">
                     <strong>상태:</strong> {{ kospi_comment }}
@@ -215,6 +230,9 @@
                     <div class="change {{ kosdaq_color }}">
                         {{ kosdaq_arrow }} {{ kosdaq_pt }}pt ({{ kosdaq_pct }})
                     </div>
+                    <div class="local-high">
+                        전고점 대비: <strong>{{ kosdaq_lh }}</strong>
+                    </div>
                 </div>
                 <div class="comment-box">
                     <strong>상태:</strong> {{ kosdaq_comment }}
@@ -229,6 +247,9 @@
                     <div class="price">{{ sp500_close }}</div>
                     <div class="change {{ sp500_color }}">
                         {{ sp500_arrow }} {{ sp500_pt }}pt ({{ sp500_pct }})
+                    </div>
+                    <div class="local-high">
+                        전고점 대비: <strong>{{ sp500_lh }}</strong>
                     </div>
                 </div>
                 <div class="comment-box">
