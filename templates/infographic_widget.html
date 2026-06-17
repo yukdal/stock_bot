@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Market Infographic</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            background-color: #0F172A; /* Deeper dark for background */
+            color: #F8FAFC;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            width: 1200px; /* Fixed width for consistent image rendering */
+            height: 600px; /* Fixed height */
+        }
+
+        .widget-container {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(145deg, #1E293B, #0F172A);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #334155;
+        }
+
+        .header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 800;
+            color: #E2E8F0;
+            letter-spacing: -1px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 16px;
+            color: #94A3B8;
+            font-weight: 500;
+        }
+
+        .cards-container {
+            display: flex;
+            gap: 24px;
+            flex: 1;
+        }
+
+        .card {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+        }
+
+        .card.kospi::before { background: #3B82F6; }
+        .card.kosdaq::before { background: #10B981; }
+        .card.sp500::before { background: #8B5CF6; }
+
+        .watermark {
+            position: absolute;
+            right: -20px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 180px;
+            opacity: 0.04;
+            pointer-events: none;
+            line-height: 1;
+            font-family: sans-serif;
+        }
+
+        .card-header {
+            font-size: 20px;
+            font-weight: 700;
+            color: #CBD5E1;
+            margin-bottom: 20px;
+            z-index: 1;
+        }
+
+        .price-container {
+            z-index: 1;
+            margin-bottom: 12px;
+        }
+
+        .price {
+            font-size: 42px;
+            font-weight: 800;
+            color: #FFFFFF;
+            line-height: 1.1;
+            margin-bottom: 8px;
+        }
+
+        .change {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .up { color: #EF4444; } /* Red for up */
+        .down { color: #3B82F6; } /* Blue for down */
+        .neutral { color: #94A3B8; }
+
+        .comment-box {
+            margin-top: auto;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            color: #94A3B8;
+            line-height: 1.5;
+            z-index: 1;
+            word-break: keep-all;
+        }
+
+        .macro-banner {
+            margin-top: 30px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 16px;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .macro-icon {
+            font-size: 24px;
+            background: rgba(59, 130, 246, 0.2);
+            padding: 10px;
+            border-radius: 12px;
+        }
+
+        .macro-text {
+            flex: 1;
+        }
+
+        .macro-title {
+            font-size: 13px;
+            color: #60A5FA;
+            font-weight: 700;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .macro-content {
+            font-size: 16px;
+            color: #E2E8F0;
+            font-weight: 500;
+            line-height: 1.4;
+            word-break: keep-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="widget-container">
+        <div class="header">
+            <h1>오후 3시 45분 국내외 주요 지수 마감 정산 (v4.1)</h1>
+            <p>{{ date_str }} 기준 · 데이터 교차검증 완료</p>
+        </div>
+
+        <div class="cards-container">
+            <!-- KOSPI -->
+            <div class="card kospi">
+                <div class="watermark">{{ kospi_arrow }}</div>
+                <div class="card-header">KOSPI</div>
+                <div class="price-container">
+                    <div class="price">{{ kospi_close }}</div>
+                    <div class="change {{ kospi_color }}">
+                        {{ kospi_arrow }} {{ kospi_pt }}pt ({{ kospi_pct }})
+                    </div>
+                </div>
+                <div class="comment-box">
+                    <strong>상태:</strong> {{ kospi_comment }}
+                </div>
+            </div>
+
+            <!-- KOSDAQ -->
+            <div class="card kosdaq">
+                <div class="watermark">{{ kosdaq_arrow }}</div>
+                <div class="card-header">KOSDAQ</div>
+                <div class="price-container">
+                    <div class="price">{{ kosdaq_close }}</div>
+                    <div class="change {{ kosdaq_color }}">
+                        {{ kosdaq_arrow }} {{ kosdaq_pt }}pt ({{ kosdaq_pct }})
+                    </div>
+                </div>
+                <div class="comment-box">
+                    <strong>상태:</strong> {{ kosdaq_comment }}
+                </div>
+            </div>
+
+            <!-- S&P 500 -->
+            <div class="card sp500">
+                <div class="watermark">{{ sp500_arrow }}</div>
+                <div class="card-header">S&P 500</div>
+                <div class="price-container">
+                    <div class="price">{{ sp500_close }}</div>
+                    <div class="change {{ sp500_color }}">
+                        {{ sp500_arrow }} {{ sp500_pt }}pt ({{ sp500_pct }})
+                    </div>
+                </div>
+                <div class="comment-box">
+                    <strong>상태:</strong> {{ sp500_comment }}
+                </div>
+            </div>
+        </div>
+
+        <div class="macro-banner">
+            <div class="macro-icon">💡</div>
+            <div class="macro-text">
+                <div class="macro-title">매크로 한줄평 (Gemini Pro 분석)</div>
+                <div class="macro-content">{{ macro_comment }}</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

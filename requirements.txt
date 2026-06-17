@@ -8,3 +8,5 @@ google-genai
 schedule
 python-dotenv
 psutil
+jinja2
+playwright

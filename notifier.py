@@ -97,3 +97,33 @@ def send_telegram_document(file_path):
             success = False
             
     return success
+
+def send_telegram_photo(photo_bytes):
+    """
+    Send an image file (in-memory bytes) to all configured Telegram chats.
+    """
+    chat_ids = get_all_chat_ids()
+    if not TELEGRAM_BOT_TOKEN or not chat_ids:
+        print("⚠️ Telegram bot token or chat IDs are missing. Skipping photo notification.")
+        return False
+        
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+    
+    success = True
+    for chat_id in chat_ids:
+        print(f"Sending photo to Telegram chat {chat_id}...")
+        try:
+            files = {"photo": ("infographic.png", photo_bytes, "image/png")}
+            payload = {"chat_id": chat_id}
+            r = requests.post(url, data=payload, files=files, timeout=30)
+                
+            if r.status_code == 200:
+                print(f"✅ Telegram photo sent successfully to {chat_id}.")
+            else:
+                print(f"❌ Telegram photo send to {chat_id} failed: {r.text}")
+                success = False
+        except Exception as e:
+            print(f"❌ Exception sending photo to Telegram chat {chat_id}: {e}")
+            success = False
+            
+    return success

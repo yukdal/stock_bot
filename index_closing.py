@@ -122,8 +122,10 @@ def execute_index_closing():
         report_lines.append("| 지수명 | 당일 종가 (전일대비) | 직전 전고점 대비 |")
         report_lines.append("| :--- | :--- | :---: |")
         
+        indices_data = {}
         for name, ticker in INDICES.items():
             data = fetch_index_data(name, ticker)
+            indices_data[name] = data
             if data:
                 c_close = f"{data['current_close']:,.2f}"
                 pt_chg = format_number(data['point_change'], is_pct=False)
@@ -142,9 +144,14 @@ def execute_index_closing():
         
         final_report = "\n".join(report_lines)
         
-        # 텔레그램 발송
+        # 텔레그램 발송 (기존 텍스트 알림)
         send_telegram_message(final_report)
-        print("🎉 Index closing settlement dispatched successfully!")
+        print("🎉 Index closing settlement text dispatched successfully!")
+        
+        # 인포그래픽 위젯 렌더링 및 텔레그램 이미지 발송 (병렬 추가)
+        from infographic_generator import generate_and_send_infographic
+        generate_and_send_infographic(indices_data, comment)
+
     except Exception as e:
         print(f"❌ Error occurred during index settlement execution: {e}")
 
