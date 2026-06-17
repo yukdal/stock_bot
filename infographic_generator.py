@@ -113,4 +113,7 @@ def generate_and_send_infographic(indices_data, macro_comment):
         send_telegram_photo(screenshot_bytes)
         
     except Exception as e:
-        print(f"❌ Error generating or sending infographic: {e}")
+        error_msg = f"❌ 인포그래픽 이미지 렌더링 중 오류가 발생했습니다:\n`{str(e)}`\n\n(Playwright/크롬 브라우저 실행 문제일 가능성이 높습니다)"
+        print(error_msg)
+        from notifier import send_telegram_message
+        send_telegram_message(error_msg)
