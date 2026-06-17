@@ -78,16 +78,18 @@ def kill_zombie_bot(port):
     """
     try:
         import psutil
-        for proc in psutil.process_iter(['pid', 'name']):
-            try:
-                for conn in proc.connections(kind='inet'):
-                    if conn.laddr.port == port:
-                        print(f"⚠️ [복구] 포트 {port}를 사용 중인 좀비 프로세스 발견: PID {proc.info['pid']} ({proc.info['name']})")
-                        proc.kill()
-                        proc.wait(timeout=3)
-                        return True
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                pass
+        # Use net_connections instead of proc.connections to avoid DeprecationWarning
+        # and AccessDenied on individual processes
+        for conn in psutil.net_connections(kind='inet'):
+            if conn.laddr.port == port and conn.pid:
+                try:
+                    proc = psutil.Process(conn.pid)
+                    print(f"⚠️ [복구] 포트 {port}를 사용 중인 좀비 프로세스 발견: PID {proc.pid} ({proc.name()})")
+                    proc.kill()
+                    proc.wait(timeout=3)
+                    return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
     except ImportError:
         print("⚠️ psutil 모듈이 없습니다. OS 명령어를 사용하여 종료를 시도합니다.")
         import subprocess
