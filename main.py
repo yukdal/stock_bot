@@ -131,6 +131,7 @@ def acquire_process_lock():
     global lock_socket
     try:
         lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        lock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         lock_socket.bind(('127.0.0.1', LOCK_PORT))
     except socket.error:
         print(f"\n⚠️ [중복 실행 감지] 포트 {LOCK_PORT}를 이미 다른 인스턴스가 사용 중입니다.")
@@ -143,6 +144,7 @@ def acquire_process_lock():
             time.sleep(3)
             try:
                 lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                lock_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 lock_socket.bind(('127.0.0.1', LOCK_PORT))
                 print("✅ 성공적으로 포트를 바인딩하고 시스템을 복구했습니다!")
                 return
