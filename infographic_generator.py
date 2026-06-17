@@ -81,7 +81,10 @@ def generate_and_send_infographic(indices_data, macro_comment):
         
         print("🌐 Rendering HTML with Playwright...")
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-dev-shm-usage']
+            )
             page = browser.new_page()
             
             # Set HTML content and wait for fonts to load
