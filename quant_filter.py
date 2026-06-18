@@ -11,6 +11,7 @@ from scraper import (
 )
 import requests
 from config import DART_API_KEY
+from kiwoom_api import fetch_kiwoom_daily_price
 
 def run_quant_filtering():
     """
@@ -189,12 +190,19 @@ def run_quant_filtering():
             # Fetch 1200 days of daily history from KIS API
             hist_data = fetch_daily_price(ticker)
             
+            # Fallback to Kiwoom REST API if KIS fails or returns not enough data
             if not hist_data or len(hist_data) < 60:
-                print(f"⚠️ Not enough history for {name}. Skipping.")
-                log_entry["Status"] = "Failed"
-                log_entry["탈락사유"] = f"과거 데이터 부족"
-                analysis_log.append(log_entry)
-                continue
+                print(f"⚠️ KIS API data insufficient or failed for {name}. Falling back to Kiwoom REST API...")
+                kiwoom_data = fetch_kiwoom_daily_price(ticker)
+                if kiwoom_data and len(kiwoom_data) >= 60:
+                    hist_data = kiwoom_data
+                    print(f"✅ Successfully fetched data from Kiwoom REST API for {name}.")
+                else:
+                    print(f"⚠️ Not enough history from both KIS and Kiwoom APIs for {name}. Skipping.")
+                    log_entry["Status"] = "Failed"
+                    log_entry["탈락사유"] = f"과거 데이터 부족 (KIS/Kiwoom 모두 실패)"
+                    analysis_log.append(log_entry)
+                    continue
                 
             # Convert to DataFrame and reverse to chronological order
             df = pd.DataFrame(hist_data)
