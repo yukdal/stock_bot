@@ -69,7 +69,11 @@ def execute_pipeline():
                 from stock_card_generator import generate_stock_cards
                 generate_stock_cards(filtered_stocks, report_text)
             except Exception as card_err:
-                print(f"⚠️ Stock card generation error (non-fatal): {card_err}")
+                import traceback
+                tb = traceback.format_exc()
+                error_msg = f"⚠️ 종목 카드 생성 모듈 로딩 오류:\n{str(card_err)}\n\n{tb[-500:]}"
+                print(error_msg)
+                send_telegram_message(error_msg)
             
         print("🎉 Screener pipeline run finished successfully!")
         
