@@ -140,7 +140,7 @@ def generate_stock_cards(filtered_stocks, report_text):
         name = stock["name"]
         
         # Check if the stock was actually selected by Gemini
-        if not parsed_lookup.get(ticker, {}).get("buy_signal", False):
+        if ticker not in parsed_lookup:
             print(f"⏭️ [{idx}/{total}] Skipping {name} ({ticker}) - Not selected by Gemini")
             continue
             
