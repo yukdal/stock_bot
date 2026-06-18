@@ -13,16 +13,12 @@ import requests
 from config import DART_API_KEY
 from kiwoom_api import fetch_kiwoom_daily_price
 
-def run_quant_filtering():
+def run_quant_filtering(is_nxt=False):
     """
-    Execute Phase 1 filtering:
-    1. Scrape Naver Rise list (KOSPI & KOSDAQ).
-    2. Filter by Price (10% - 30%) and Trading Value (>= 10B KRW).
-    3. Check Moving Averages (1000-day location, 5/20/60 alignment) and Volume Explosion using yfinance.
-    4. Check DART financials (3-year net income black, liabilities < equity).
-    Returns a tuple: (list of dictionaries with complete details of filtered stocks, list of analysis logs).
+    Main logic to screen and filter top stocks based on price, volume, and supply/demand.
     """
-    print("🚀 Starting Phase 1: Quantitative Filtering...")
+    phase_name = "NXT-Inclusive Phase 1" if is_nxt else "Phase 1"
+    print(f"\n⏳ [{phase_name}] Fetching daily top rising stocks...")
     
     # 1. Fetch Rise Lists
     kospi_rise = fetch_naver_rise_list("kospi")

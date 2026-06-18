@@ -2,7 +2,7 @@ import datetime
 from google import genai
 from config import GEMINI_API_KEY, GEMINI_MODEL
 
-def build_prompt(filtered_stocks):
+def build_prompt(filtered_stocks, is_nxt=False):
     """
     Construct the analysis prompt for Gemini to strictly output the requested layout.
     """
@@ -56,13 +56,15 @@ def build_prompt(filtered_stocks):
 {news_str if news_str else '없음'}
 """
 
+    report_title = "🚀 [NXT 통합] 오후 9시 넥스트레이드 반영 스윙 주도주 브리핑" if is_nxt else "🚀 오후 8시 Gemini Pro 연동 스윙 주도주 브리핑"
+
     prompt = f"""
 당신은 대한민국 최고의 주식 시장 퀀트 분석가입니다. 아래 필터링된 주도주 데이터를 바탕으로 다음 [출력 양식 가이드]를 100% 동일하게 준수하여 리포트를 작성하십시오. 
 제공된 데이터를 철저히 분석하여 스윙 매매 관점에서 가장 상승 확률이 높은 1~3개 종목을 '오늘의 TOP 스윙 추천주'로 선정하고, 예상 매수가, 목표 매도가, 손절가, 추천 사유를 당신의 전문 지식을 활용해 작성하십시오. 
 나머지 종목들은 맨 아래 '필터링 통과 종목 전체 요약' 표에만 포함시키십시오.
 
 [출력 양식 가이드 시작]
-🚀 오후 8시 Gemini Pro 연동 스윙 주도주 브리핑
+{report_title}
 
 🏆 오늘의 TOP 스윙 추천주
 (추천 종목마다 아래 블록을 반복 생성)
@@ -97,13 +99,14 @@ def build_prompt(filtered_stocks):
 """
     return prompt
 
-def generate_mock_report(filtered_stocks):
+def generate_mock_report(filtered_stocks, is_nxt=False):
     """
     Generate a high-quality Markdown report locally as a fallback
     when Gemini API key is missing or invalid.
     Matches the required layout exactly.
     """
-    report = "🚀 [오후 8시 Gemini Pro 연동 스윙 주도주 브리핑]\n\n"
+    report_title = "🚀 [NXT 통합] 오후 9시 넥스트레이드 반영 스윙 주도주 브리핑" if is_nxt else "🚀 [오후 8시 Gemini Pro 연동 스윙 주도주 브리핑]"
+    report = f"{report_title}\n\n"
     
     if not filtered_stocks:
         report += "오늘 조건(가격 10~30% 상승, 거래대금 100억 이상 등)을 통과한 종목이 없습니다.\n"
@@ -151,21 +154,21 @@ def generate_mock_report(filtered_stocks):
         
     return report
 
-def generate_report(filtered_stocks, analysis_log=None):
+def generate_report(filtered_stocks, analysis_log=None, is_nxt=False):
     """
     Generate the complete analyst report using Gemini, falling back to mock report on failure.
     """
     if not filtered_stocks:
-        report_text = generate_mock_report(filtered_stocks)
+        report_text = generate_mock_report(filtered_stocks, is_nxt=is_nxt)
     elif not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY":
         print("⚠️ Gemini API key is placeholder. Generating local structured report...")
-        report_text = generate_mock_report(filtered_stocks)
+        report_text = generate_mock_report(filtered_stocks, is_nxt=is_nxt)
     else:
         try:
             print(f"🤖 Connecting to Gemini API using model '{GEMINI_MODEL}'...")
             client = genai.Client(api_key=GEMINI_API_KEY)
             
-            prompt = build_prompt(filtered_stocks)
+            prompt = build_prompt(filtered_stocks, is_nxt=is_nxt)
             
             response = client.models.generate_content(
                 model=GEMINI_MODEL,

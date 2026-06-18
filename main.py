@@ -18,7 +18,7 @@ BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
 REPORTS_DIR.mkdir(exist_ok=True)
 
-def execute_pipeline():
+def execute_pipeline(is_nxt=False):
     """
     Core pipeline:
     1. Check if today is weekend (skip if Saturday or Sunday)
@@ -28,7 +28,8 @@ def execute_pipeline():
     5. Send Telegram notification
     """
     today = datetime.date.today()
-    print(f"\n🔔 [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting Screener Pipeline...")
+    pipeline_type = "NXT-Inclusive " if is_nxt else ""
+    print(f"\n🔔 [{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Starting {pipeline_type}Screener Pipeline...")
     
     # Skip weekends in standard run
     if today.weekday() >= 5:
@@ -37,23 +38,25 @@ def execute_pipeline():
         
     try:
         # 1. Run Quantitative and DART Financial Filters
-        filtered_stocks, analysis_log = run_quant_filtering()
+        filtered_stocks, analysis_log = run_quant_filtering(is_nxt=is_nxt)
         
         # Save analysis log to CSV for Notion import
         csv_path = None
         if analysis_log:
             df_log = pd.DataFrame(analysis_log)
             date_str = today.strftime("%Y%m%d")
-            csv_path = REPORTS_DIR / f"analysis_source_{date_str}.csv"
+            file_suffix = "_NXT" if is_nxt else ""
+            csv_path = REPORTS_DIR / f"analysis_source_{date_str}{file_suffix}.csv"
             df_log.to_csv(csv_path, index=False, encoding="utf-8-sig")
             print(f"📊 Analysis source data saved locally to {csv_path}")
         
         # 2. Generate Analyst Report
-        report_text = generate_report(filtered_stocks, analysis_log)
+        report_text = generate_report(filtered_stocks, analysis_log, is_nxt=is_nxt)
         
         # 3. Save Report Locally
         date_str = today.strftime("%Y%m%d")
-        report_path = REPORTS_DIR / f"report_{date_str}.md"
+        file_suffix = "_NXT" if is_nxt else ""
+        report_path = REPORTS_DIR / f"report_{date_str}{file_suffix}.md"
         with open(report_path, "w", encoding="utf-8") as f:
             f.write(report_text)
         print(f"💾 Report saved locally to {report_path}")
@@ -67,6 +70,7 @@ def execute_pipeline():
         if filtered_stocks:
             try:
                 from stock_card_generator import generate_stock_cards
+                # Use a specific output dir or name logic for NXT if needed, but it's okay to overwrite or just generate
                 generate_stock_cards(filtered_stocks, report_text)
             except Exception as card_err:
                 import traceback
@@ -75,7 +79,7 @@ def execute_pipeline():
                 print(error_msg)
                 send_telegram_message(error_msg)
             
-        print("🎉 Screener pipeline run finished successfully!")
+        print(f"🎉 {pipeline_type}Screener pipeline run finished successfully!")
         
     except Exception as e:
         print(f"❌ Error occurred during pipeline execution: {e}")
@@ -104,6 +108,11 @@ def main():
         help="Run the screening pipeline immediately and exit."
     )
     parser.add_argument(
+        "--now-nxt",
+        action="store_true",
+        help="Run the NXT-inclusive screening pipeline immediately and exit."
+    )
+    parser.add_argument(
         "--now-index",
         action="store_true",
         help="Run the index closing settlement immediately and exit."
@@ -115,7 +124,12 @@ def main():
     
     if args.now:
         print("🏃 Running manual one-off execution...")
-        execute_pipeline()
+        execute_pipeline(is_nxt=False)
+        sys.exit(0)
+        
+    if args.now_nxt:
+        print("🏃 Running manual one-off NXT-inclusive execution...")
+        execute_pipeline(is_nxt=True)
         sys.exit(0)
         
     if args.now_index:
@@ -129,23 +143,28 @@ def main():
     
     print("🕰️ Starting daily robust scheduler mode...")
     print("📅 Index Settlement is scheduled to run every Mon-Fri at 15:45 KST.")
-    print("📅 Screener is scheduled to run every Mon-Fri at 20:00 KST.")
+    print("📅 KRX Screener is scheduled to run every Mon-Fri at 20:00 KST.")
+    print("📅 NXT Screener is scheduled to run every Mon-Fri at 21:00 KST.")
     print("👉 Use Ctrl+C to terminate.")
     
     # Define a wrapper to run jobs in background threads so they don't block the scheduler
-    def run_threaded(job_func):
+    def run_threaded(job_func, *args, **kwargs):
         import threading
-        job_thread = threading.Thread(target=job_func)
+        job_thread = threading.Thread(target=job_func, args=args, kwargs=kwargs)
         job_thread.daemon = True
         job_thread.start()
 
     # Start bot listener thread in the background
-    start_bot_listener(screener_callback=execute_pipeline, index_callback=execute_index_closing)
+    def screener_nxt_wrapper():
+        execute_pipeline(is_nxt=True)
+        
+    start_bot_listener(screener_callback=execute_pipeline, index_callback=execute_index_closing, screener_nxt_callback=screener_nxt_wrapper)
     
     # Keep the script running with robust custom time checking
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     last_run_index = None
     last_run_screener = None
+    last_run_nxt = None
     
     # Catch-up logic on startup
     now_kst = datetime.datetime.now(kst_tz)
@@ -158,8 +177,13 @@ def main():
         
     if now_kst.time() >= datetime.time(20, 0) and current_date.weekday() < 5:
         print("🚀 Startup Check: Triggering 20:00 KST Screener immediately...")
-        run_threaded(execute_pipeline)
+        run_threaded(execute_pipeline, is_nxt=False)
         last_run_screener = current_date
+        
+    if now_kst.time() >= datetime.time(21, 0) and current_date.weekday() < 5:
+        print("🚀 Startup Check: Triggering 21:00 KST NXT Screener immediately...")
+        run_threaded(execute_pipeline, is_nxt=True)
+        last_run_nxt = current_date
     
     try:
         while True:
@@ -173,11 +197,17 @@ def main():
                 run_threaded(execute_index_closing)
                 last_run_index = current_date
                 
-            # 20:00 KST: Screener pipeline
+            # 20:00 KST: Screener pipeline (KRX)
             if current_time == "20:00" and last_run_screener != current_date:
                 print(f"⏰ Triggering 20:00 KST Screener...")
-                run_threaded(execute_pipeline)
+                run_threaded(execute_pipeline, is_nxt=False)
                 last_run_screener = current_date
+                
+            # 21:00 KST: Screener pipeline (NXT)
+            if current_time == "21:00" and last_run_nxt != current_date:
+                print(f"⏰ Triggering 21:00 KST Screener (NXT)...")
+                run_threaded(execute_pipeline, is_nxt=True)
+                last_run_nxt = current_date
                 
             time.sleep(10)
     except KeyboardInterrupt:
