@@ -19,22 +19,40 @@ def send_reply(chat_id, text):
 def process_updates(updates, screener_callback, index_callback):
     for update in updates:
         try:
-            message = update.get("message", {})
-            chat = message.get("chat", {})
-            chat_id = chat.get("id")
-            text = message.get("text") or ""
-            
-            if not chat_id:
-                # Handle my_chat_member event (bot added to group)
-                my_chat_member = update.get("my_chat_member", {})
-                chat = my_chat_member.get("chat", {})
-                chat_id = chat.get("id")
+            # Handle my_chat_member event (bot added to group)
+            if "my_chat_member" in update:
+                my_chat_member = update["my_chat_member"]
+                chat_id = my_chat_member.get("chat", {}).get("id")
                 new_status = my_chat_member.get("new_chat_member", {}).get("status")
+                
                 if chat_id and new_status in ["member", "administrator"]:
                     if add_chat_id(chat_id):
-                        send_reply(chat_id, "🤖 안녕하세요! 스윙종목 분석 봇입니다. 등록이 완료되어 앞으로 이 방에 매일 리포트를 보내드릴게요. 작동 확인을 원하시면 `/ping` 명령어를 입력해주세요.")
+                        send_reply(chat_id, "🤖 안녕하세요! 스윙종목 분석 봇입니다. 그룹방 등록이 완료되어 앞으로 이 방에 매일 리포트를 보내드릴게요. 작동 확인을 원하시면 `/ping` 명령어를 입력해주세요.")
                 continue
                 
+            # Handle standard messages
+            message = update.get("message", {})
+            if not message:
+                continue
+                
+            chat_id = message.get("chat", {}).get("id")
+            if not chat_id:
+                continue
+                
+            # Check for bot being added via new_chat_members
+            new_members = message.get("new_chat_members", [])
+            for member in new_members:
+                if member.get("is_bot"): # If any bot is added, we can assume we want to activate in this group. Ideally check bot username.
+                    if add_chat_id(chat_id):
+                        send_reply(chat_id, "🤖 안녕하세요! 스윙종목 분석 봇입니다. 그룹방 등록이 완료되어 앞으로 이 방에 매일 리포트를 보내드릴게요. 작동 확인을 원하시면 `/ping` 명령어를 입력해주세요.")
+            
+            # Check for group_chat_created
+            if message.get("group_chat_created", False):
+                if add_chat_id(chat_id):
+                    send_reply(chat_id, "🤖 안녕하세요! 스윙종목 분석 봇입니다. 새 그룹방 등록이 완료되어 앞으로 이 방에 매일 리포트를 보내드릴게요. 작동 확인을 원하시면 `/ping` 명령어를 입력해주세요.")
+
+            text = message.get("text") or ""
+            
             # Message processing
             if text.startswith("/start"):
                 if add_chat_id(chat_id):
@@ -57,6 +75,8 @@ def process_updates(updates, screener_callback, index_callback):
         except Exception as e:
             print(f"⚠️ Error processing a specific update: {e}")
 
+import json
+
 def poll_telegram(screener_callback, index_callback):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
     offset = None
@@ -65,7 +85,10 @@ def poll_telegram(screener_callback, index_callback):
     
     while True:
         try:
-            params = {"timeout": 30, "allowed_updates": ["message", "my_chat_member"]}
+            params = {
+                "timeout": 30, 
+                "allowed_updates": json.dumps(["message", "my_chat_member"])
+            }
             if offset:
                 params["offset"] = offset
                 
