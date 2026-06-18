@@ -12,11 +12,24 @@ INDICES = {
 
 def fetch_index_data(name, ticker):
     """
-    특정 지수의 당일/전일 종가, ATH(역사적 최고점), Local High(52주 최고점)를 계산합니다.
+    특정 지수의 당일/전일 종가 및 직전 전고점(Swing High)을 계산합니다.
     """
+    def find_recent_swing_high(highs_series):
+        prices = highs_series.values
+        n = len(prices)
+        if n < 2: return highs_series.max()
+            
+        window = 15 # 15일(약 3주) 기준 앞뒤로 가장 높은 가격을 '전고점'으로 정의
+        for i in range(n-1, -1, -1):
+            start = max(0, i - window)
+            end = min(n, i + window + 1)
+            if prices[i] == max(prices[start:end]):
+                return prices[i]
+        return prices.max()
+        
     try:
         idx = yf.Ticker(ticker)
-        max_df = idx.history(period="max")
+        max_df = idx.history(period="5y") # 52주 제한 없이 넉넉하게 5년치에서 최근 고점 탐색
         
         if name in ["KOSPI", "KOSDAQ"]:
             # Fetch real-time data from Naver Finance because Yahoo is 1-day delayed at 15:45 KST
@@ -29,7 +42,7 @@ def fetch_index_data(name, ticker):
             pct_change = float(data['fluctuationsRatio'].replace(',', ''))
         else:
             # S&P 500 uses yfinance (US market already closed)
-            recent_df = idx.history(period="5d")
+            recent_df = idx.history(period="5d").dropna(subset=['Close'])
             if len(recent_df) < 2:
                 return None
             current_close = recent_df['Close'].iloc[-1]
@@ -37,23 +50,19 @@ def fetch_index_data(name, ticker):
             point_change = current_close - prev_close
             pct_change = (point_change / prev_close) * 100 if prev_close > 0 else 0.0
             
-        # 최대 기간 데이터로 최고점 분석
+        # 최대 기간 데이터로 최근 스윙 하이(전고점) 분석
         if len(max_df) > 0:
-            ath = max_df['High'].max()
-            local_df = max_df.tail(252) # 약 52주
-            local_high = local_df['High'].max()
+            max_df = max_df.dropna(subset=['High'])
+            local_high = find_recent_swing_high(max_df['High']) # 52주 제한 없는 진짜 직전 전고점
             
-            ath_pct = ((current_close - ath) / ath * 100) if ath > 0 else 0.0
             local_high_pct = ((current_close - local_high) / local_high * 100) if local_high > 0 else 0.0
         else:
-            ath_pct = 0.0
             local_high_pct = 0.0
             
         return {
             "current_close": current_close,
             "point_change": point_change,
             "pct_change": pct_change,
-            "ath_pct": ath_pct,
             "local_high_pct": local_high_pct
         }
     except Exception as e:
@@ -110,22 +119,23 @@ def execute_index_closing():
         report_lines.append("📊 [오후 3시 45분 국내외 주요 지수 마감 정산 (v4.1)]")
         report_lines.append("오늘 정규장 마감 직후 집계된 주요 지수의 위치와 변동성 데이터입니다. (데이터 교차검증 완료)\n")
         
-        report_lines.append("| 지수명 | 당일 종가 (전일대비) | 역사적 최고점 대비 | 직전 전고점 대비 |")
-        report_lines.append("| :--- | :--- | :---: | :---: |")
+        report_lines.append("| 지수명 | 당일 종가 (전일대비) | 직전 전고점 대비 |")
+        report_lines.append("| :--- | :--- | :---: |")
         
+        indices_data = {}
         for name, ticker in INDICES.items():
             data = fetch_index_data(name, ticker)
+            indices_data[name] = data
             if data:
                 c_close = f"{data['current_close']:,.2f}"
                 pt_chg = format_number(data['point_change'], is_pct=False)
                 pct_chg = format_number(data['pct_change'], is_pct=True)
                 
-                ath_chg = format_number(data['ath_pct'], is_pct=True)
                 lh_chg = format_number(data['local_high_pct'], is_pct=True)
                 
-                report_lines.append(f"| **{name}** | {c_close} ({pt_chg}pt, {pct_chg}) | {ath_chg} | {lh_chg} |")
+                report_lines.append(f"| **{name}** | {c_close} ({pt_chg}pt, {pct_chg}) | {lh_chg} |")
             else:
-                report_lines.append(f"| **{name}** | 데이터 수집 지연 | - | - |")
+                report_lines.append(f"| **{name}** | 데이터 수집 지연 | - |")
                 
         comment = generate_index_macro_comment()
         report_lines.append("\n💡 **매크로 한줄평 (Gemini Pro 분석)**")
@@ -134,9 +144,14 @@ def execute_index_closing():
         
         final_report = "\n".join(report_lines)
         
-        # 텔레그램 발송
+        # 텔레그램 발송 (기존 텍스트 알림)
         send_telegram_message(final_report)
-        print("🎉 Index closing settlement dispatched successfully!")
+        print("🎉 Index closing settlement text dispatched successfully!")
+        
+        # 인포그래픽 위젯 렌더링 및 텔레그램 이미지 발송 (병렬 추가)
+        from infographic_generator import generate_and_send_infographic
+        generate_and_send_infographic(indices_data, comment)
+
     except Exception as e:
         print(f"❌ Error occurred during index settlement execution: {e}")
 
