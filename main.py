@@ -62,6 +62,14 @@ def execute_pipeline():
         send_telegram_message(report_text)
         if csv_path:
             send_telegram_document(csv_path)
+        
+        # 5. Generate per-stock infographic cards (1 image per TOP pick)
+        if filtered_stocks:
+            try:
+                from stock_card_generator import generate_stock_cards
+                generate_stock_cards(filtered_stocks, report_text)
+            except Exception as card_err:
+                print(f"⚠️ Stock card generation error (non-fatal): {card_err}")
             
         print("🎉 Screener pipeline run finished successfully!")
         

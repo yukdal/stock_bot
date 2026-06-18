@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Stock Card Infographic</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+            background-color: #080c16;
+            color: #F1F5F9;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            width: 1200px;
+        }
+
+        .card-container {
+            width: 100%;
+            background: radial-gradient(circle at 15% 10%, rgba(99, 102, 241, 0.2) 0%, transparent 35%),
+                        radial-gradient(circle at 85% 90%, rgba(139, 92, 246, 0.2) 0%, transparent 35%),
+                        radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.1) 0%, transparent 50%),
+                        linear-gradient(160deg, #1a2236, #0f172a);
+            border-radius: 32px;
+            padding: 44px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.07);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* ── Top Header ── */
+        .top-header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .top-header .subtitle {
+            font-size: 15px;
+            font-weight: 600;
+            color: #94A3B8;
+            letter-spacing: 0.5px;
+        }
+        .top-header h1 {
+            font-size: 30px;
+            font-weight: 800;
+            background: linear-gradient(to right, #fff, #a5b4fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-top: 6px;
+        }
+
+        /* ── Stock Info Banner ── */
+        .stock-banner {
+            margin-top: 24px;
+            background: rgba(255,255,255,0.04);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            padding: 24px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+        .stock-info-left {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .stock-name-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .sector-icon {
+            font-size: 36px;
+            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3));
+        }
+        .stock-name {
+            font-size: 28px;
+            font-weight: 800;
+            color: #fff;
+        }
+        .stock-ticker {
+            font-size: 16px;
+            font-weight: 600;
+            color: #94A3B8;
+            background: rgba(255,255,255,0.06);
+            padding: 3px 10px;
+            border-radius: 8px;
+        }
+        .stock-market {
+            font-size: 14px;
+            font-weight: 700;
+            color: #60A5FA;
+            background: rgba(96,165,250,0.12);
+            padding: 3px 10px;
+            border-radius: 8px;
+        }
+        .stock-theme {
+            font-size: 15px;
+            color: #CBD5E1;
+            font-weight: 500;
+        }
+        .stock-theme strong { color: #A78BFA; }
+
+        .stock-info-right {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .change-badge {
+            font-size: 24px;
+            font-weight: 800;
+            padding: 8px 20px;
+            border-radius: 14px;
+            display: inline-block;
+        }
+        .change-badge.up { color: #FF6B6B; background: rgba(255,107,107,0.12); }
+        .change-badge.down { color: #4DABF7; background: rgba(77,171,247,0.12); }
+        .volume-text {
+            font-size: 15px;
+            color: #94A3B8;
+            font-weight: 500;
+        }
+
+        /* ── Recommendation Section ── */
+        .reco-section {
+            margin-top: 24px;
+            display: flex;
+            gap: 24px;
+        }
+        .reco-left {
+            flex: 3;
+            background: rgba(255,255,255,0.04);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            padding: 28px;
+        }
+        .reco-left h3 {
+            font-size: 18px;
+            font-weight: 800;
+            color: #FBBF24;
+            margin-bottom: 16px;
+        }
+        .reco-left ul {
+            list-style: none;
+            padding: 0;
+        }
+        .reco-left ul li {
+            font-size: 15px;
+            color: #E2E8F0;
+            line-height: 1.7;
+            padding-left: 18px;
+            position: relative;
+            margin-bottom: 6px;
+            word-break: keep-all;
+        }
+        .reco-left ul li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: #60A5FA;
+            font-weight: 800;
+        }
+
+        .reco-right {
+            flex: 2;
+            background: rgba(255,255,255,0.04);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .price-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .price-icon {
+            font-size: 22px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            flex-shrink: 0;
+        }
+        .price-icon.buy { background: rgba(96,165,250,0.15); }
+        .price-icon.target { background: rgba(251,191,36,0.15); }
+        .price-icon.stop { background: rgba(255,107,107,0.15); }
+        .price-label {
+            font-size: 13px;
+            color: #94A3B8;
+            font-weight: 600;
+        }
+        .price-value {
+            font-size: 16px;
+            color: #F1F5F9;
+            font-weight: 700;
+            word-break: keep-all;
+        }
+
+        /* ── Bottom 4 Cards ── */
+        .bottom-grid {
+            margin-top: 24px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 18px;
+        }
+        .info-card {
+            background: rgba(255,255,255,0.04);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 18px;
+            padding: 22px;
+            position: relative;
+            overflow: hidden;
+        }
+        .info-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+        }
+        .info-card:nth-child(1)::before { background: linear-gradient(90deg, #3B82F6, #60A5FA); }
+        .info-card:nth-child(2)::before { background: linear-gradient(90deg, #10B981, #34D399); }
+        .info-card:nth-child(3)::before { background: linear-gradient(90deg, #F59E0B, #FBBF24); }
+        .info-card:nth-child(4)::before { background: linear-gradient(90deg, #8B5CF6, #A78BFA); }
+
+        .info-card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .info-card-header .icon {
+            font-size: 20px;
+        }
+        .info-card-header .title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #E2E8F0;
+        }
+        .info-card ul {
+            list-style: none;
+            padding: 0;
+        }
+        .info-card ul li {
+            font-size: 14px;
+            color: #CBD5E1;
+            line-height: 1.6;
+            margin-bottom: 4px;
+            word-break: keep-all;
+        }
+        .info-card ul li strong {
+            color: #F1F5F9;
+        }
+    </style>
+</head>
+<body>
+    <div class="card-container">
+        <!-- Top Header -->
+        <div class="top-header">
+            <div class="subtitle">Gemini Pro 연동 스윙 주도주 브리핑</div>
+            <h1>🏆 오늘의 TOP 스윙 추천주</h1>
+        </div>
+
+        <!-- Stock Info Banner -->
+        <div class="stock-banner">
+            <div class="stock-info-left">
+                <div class="stock-name-row">
+                    <span class="sector-icon">{{ sector_icon }}</span>
+                    <span class="stock-name">{{ stock_name }}</span>
+                    <span class="stock-ticker">{{ stock_ticker }}</span>
+                    <span class="stock-market">{{ stock_market }}</span>
+                </div>
+                <div class="stock-theme">주도 테마: <strong>{{ stock_theme }}</strong></div>
+            </div>
+            <div class="stock-info-right">
+                <div class="change-badge {{ change_color }}">{{ change_arrow }} {{ change_pct }}</div>
+                <div class="volume-text">거래대금: {{ volume_text }}</div>
+            </div>
+        </div>
+
+        <!-- Recommendation Section -->
+        <div class="reco-section">
+            <div class="reco-left">
+                <h3>💡 추천 사유 (선정 이유)</h3>
+                <ul>
+                    {% for reason in reco_reasons %}
+                    <li>{{ reason }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="reco-right">
+                <div class="price-row">
+                    <div class="price-icon buy">💰</div>
+                    <div>
+                        <div class="price-label">예상 매수가</div>
+                        <div class="price-value">{{ buy_price }}</div>
+                    </div>
+                </div>
+                <div class="price-row">
+                    <div class="price-icon target">🎯</div>
+                    <div>
+                        <div class="price-label">목표 매도가</div>
+                        <div class="price-value">{{ target_price }}</div>
+                    </div>
+                </div>
+                <div class="price-row">
+                    <div class="price-icon stop">🛑</div>
+                    <div>
+                        <div class="price-label">손절가</div>
+                        <div class="price-value">{{ stop_loss }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom 4 Info Cards -->
+        <div class="bottom-grid">
+            <!-- 기술적 추세 -->
+            <div class="info-card">
+                <div class="info-card-header">
+                    <span class="icon">📈</span>
+                    <span class="title">기술적 추세</span>
+                </div>
+                <ul>
+                    <li>1000일선 위치: <strong>{{ ma1000_status }}</strong></li>
+                    <li>현재가: {{ current_price }} / 1000일선: {{ ma1000_value }}</li>
+                    <li>단기 이평선: <strong>{{ alignment_status }}</strong></li>
+                    <li>거래량 폭발: <strong>{{ volume_ratio }}</strong></li>
+                </ul>
+            </div>
+
+            <!-- 당일 최종 수급 -->
+            <div class="info-card">
+                <div class="info-card-header">
+                    <span class="icon">💵</span>
+                    <span class="title">당일 최종 수급</span>
+                </div>
+                <ul>
+                    <li>기관: <strong>{{ organ_supply }}</strong></li>
+                    <li>외국인: <strong>{{ foreigner_supply }}</strong></li>
+                    <li>개인: <strong>{{ individual_supply }}</strong></li>
+                </ul>
+            </div>
+
+            <!-- 재무 안정성 점검 -->
+            <div class="info-card">
+                <div class="info-card-header">
+                    <span class="icon">📋</span>
+                    <span class="title">재무 안정성 점검</span>
+                </div>
+                <ul>
+                    <li>당기순이익(3년):</li>
+                    <li>{{ ni_y0 }}, {{ ni_y1 }}, {{ ni_y2 }}</li>
+                    <li>부채비율: <strong>{{ debt_ratio }}</strong></li>
+                    <li>유보율: <strong>{{ reserve_ratio }}</strong></li>
+                </ul>
+            </div>
+
+            <!-- 관련 핵심 뉴스 -->
+            <div class="info-card">
+                <div class="info-card-header">
+                    <span class="icon">📰</span>
+                    <span class="title">관련 핵심 뉴스</span>
+                </div>
+                <ul>
+                    <li>"{{ news_headline }}"</li>
+                    <li style="color:#94A3B8; font-size:13px;">({{ news_source }})</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
