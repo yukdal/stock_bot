@@ -118,6 +118,8 @@ def generate_stock_cards(filtered_stocks, report_text):
         print("📭 No filtered stocks to generate cards for.")
         return
     
+    from notifier import send_telegram_message
+    
     # Parse Gemini report for qualitative analysis
     parsed_report = parse_gemini_report(report_text)
     
@@ -129,104 +131,118 @@ def generate_stock_cards(filtered_stocks, report_text):
     template = env.get_template('stock_card_widget.html')
     
     cards_sent = 0
+    total = len(filtered_stocks)
     
-    for stock in filtered_stocks:
-        ticker = stock["ticker"]
-        name = stock["name"]
-        
-        # Get Gemini analysis if available, else use defaults
-        gemini_data = parsed_lookup.get(ticker, {})
-        
-        # Determine sector icon from theme or sector
-        theme_text = gemini_data.get("theme", stock.get("sector", ""))
-        sector_icon = get_sector_icon(theme_text)
-        
-        # Format supply/demand values
-        sd = stock["supply_demand"]
-        organ_eok = sd['organ_val'] / 100_000_000
-        foreigner_eok = sd['foreigner_val'] / 100_000_000
-        individual_eok = sd['individual_val'] / 100_000_000
-        
-        # Format net income 3y
-        ni = stock['net_income_3y']
-        ni_labels = ["2023", "2024", "2025"]
-        ni_strs = []
-        for i, val in enumerate(ni):
-            if val is not None:
-                eok = val / 100_000_000
-                ni_strs.append(f"{ni_labels[i]}({eok:+.0f}억)")
-            else:
-                ni_strs.append(f"{ni_labels[i]}(N/A)")
-        
-        # Format news
-        news_headline = "관련 뉴스 수집 중..."
-        news_source = ""
-        if stock["news"]:
-            news_headline = stock["news"][0]["title"]
-            news_source = stock["news"][0].get("source", "뉴스")
-        
-        # Build template context
-        context = {
-            "sector_icon": sector_icon,
-            "stock_name": name,
-            "stock_ticker": ticker,
-            "stock_market": stock["market"],
-            "stock_theme": theme_text if theme_text else stock.get("sector", "분석 중"),
+    send_telegram_message(f"🎨 종목별 인포그래픽 카드 생성을 시작합니다... ({total}개 종목)")
+    
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-dev-shm-usage']
+            )
             
-            "change_pct": f"{stock['change_pct']:+.2f}%",
-            "change_arrow": "▲" if stock['change_pct'] > 0 else ("▼" if stock['change_pct'] < 0 else ""),
-            "change_color": "up" if stock['change_pct'] > 0 else "down",
-            "volume_text": f"{stock['approx_value'] / 100_000_000:,.0f}억 원",
-            
-            "reco_reasons": gemini_data.get("reasons", ["Gemini 분석 결과를 기반으로 선정된 종목입니다."]),
-            "buy_price": gemini_data.get("buy_price", "분석 중"),
-            "target_price": gemini_data.get("target_price", "분석 중"),
-            "stop_loss": gemini_data.get("stop_loss", "분석 중"),
-            
-            "ma1000_status": "위" if "ABOVE" in stock.get('price_vs_ma_1000', '') else "아래",
-            "current_price": f"{stock['close']:,}원",
-            "ma1000_value": f"{stock['ma_1000']:,.0f}원" if stock.get('ma_1000') else "N/A",
-            "alignment_status": "5-20-60일 정배열" if "Aligned" in stock.get('alignment', '') and "Non" not in stock.get('alignment', '') else "정배열 아님",
-            "volume_ratio": f"{stock['volume_ratio']:.1f}% (20일 평균 대비)",
-            
-            "organ_supply": f"{organ_eok:+.0f}억",
-            "foreigner_supply": f"{foreigner_eok:+.0f}억",
-            "individual_supply": f"{individual_eok:+.0f}억",
-            
-            "ni_y0": ni_strs[0] if len(ni_strs) > 0 else "N/A",
-            "ni_y1": ni_strs[1] if len(ni_strs) > 1 else "N/A",
-            "ni_y2": ni_strs[2] if len(ni_strs) > 2 else "N/A",
-            "debt_ratio": f"{stock['debt_ratios_3y'][0]:.1f}%",
-            "reserve_ratio": f"{stock['reserve_ratios_3y'][0]:.1f}%",
-            
-            "news_headline": news_headline,
-            "news_source": news_source,
-        }
-        
-        try:
-            html_content = template.render(**context)
-            
-            print(f"🌐 Rendering stock card for {name} ({ticker})...")
-            with sync_playwright() as p:
-                browser = p.chromium.launch(
-                    headless=True,
-                    args=['--no-sandbox', '--disable-dev-shm-usage']
-                )
-                page = browser.new_page()
-                page.set_content(html_content, wait_until="networkidle")
-                page.evaluate("document.fonts.ready")
-                time.sleep(2)  # Wait for fonts to fully render
+            for idx, stock in enumerate(filtered_stocks, 1):
+                ticker = stock["ticker"]
+                name = stock["name"]
                 
-                element = page.locator(".card-container")
-                screenshot_bytes = element.screenshot()
-                browser.close()
+                try:
+                    # Get Gemini analysis if available, else use defaults
+                    gemini_data = parsed_lookup.get(ticker, {})
+                    
+                    # Determine sector icon from theme or sector
+                    theme_text = gemini_data.get("theme", stock.get("sector", ""))
+                    sector_icon = get_sector_icon(theme_text)
+                    
+                    # Format supply/demand values
+                    sd = stock["supply_demand"]
+                    organ_eok = sd['organ_val'] / 100_000_000
+                    foreigner_eok = sd['foreigner_val'] / 100_000_000
+                    individual_eok = sd['individual_val'] / 100_000_000
+                    
+                    # Format net income 3y
+                    ni = stock['net_income_3y']
+                    ni_labels = ["2023", "2024", "2025"]
+                    ni_strs = []
+                    for i, val in enumerate(ni):
+                        if val is not None:
+                            eok = val / 100_000_000
+                            ni_strs.append(f"{ni_labels[i]}({eok:+.0f}억)")
+                        else:
+                            ni_strs.append(f"{ni_labels[i]}(N/A)")
+                    
+                    # Format news
+                    news_headline = "관련 뉴스 수집 중..."
+                    news_source = ""
+                    if stock["news"]:
+                        news_headline = stock["news"][0]["title"]
+                        news_source = stock["news"][0].get("source", "뉴스")
+                    
+                    # Build template context
+                    context = {
+                        "sector_icon": sector_icon,
+                        "stock_name": name,
+                        "stock_ticker": ticker,
+                        "stock_market": stock["market"],
+                        "stock_theme": theme_text if theme_text else stock.get("sector", "분석 중"),
+                        
+                        "change_pct": f"{stock['change_pct']:+.2f}%",
+                        "change_arrow": "▲" if stock['change_pct'] > 0 else ("▼" if stock['change_pct'] < 0 else ""),
+                        "change_color": "up" if stock['change_pct'] > 0 else "down",
+                        "volume_text": f"{stock['approx_value'] / 100_000_000:,.0f}억 원",
+                        
+                        "reco_reasons": gemini_data.get("reasons", ["Gemini 분석 결과를 기반으로 선정된 종목입니다."]),
+                        "buy_price": gemini_data.get("buy_price", "분석 중"),
+                        "target_price": gemini_data.get("target_price", "분석 중"),
+                        "stop_loss": gemini_data.get("stop_loss", "분석 중"),
+                        
+                        "ma1000_status": "위" if "ABOVE" in stock.get('price_vs_ma_1000', '') else "아래",
+                        "current_price": f"{stock['close']:,}원",
+                        "ma1000_value": f"{stock['ma_1000']:,.0f}원" if stock.get('ma_1000') else "N/A",
+                        "alignment_status": "5-20-60일 정배열" if "Aligned" in stock.get('alignment', '') and "Non" not in stock.get('alignment', '') else "정배열 아님",
+                        "volume_ratio": f"{stock['volume_ratio']:.1f}% (20일 평균 대비)",
+                        
+                        "organ_supply": f"{organ_eok:+.0f}억",
+                        "foreigner_supply": f"{foreigner_eok:+.0f}억",
+                        "individual_supply": f"{individual_eok:+.0f}억",
+                        
+                        "ni_y0": ni_strs[0] if len(ni_strs) > 0 else "N/A",
+                        "ni_y1": ni_strs[1] if len(ni_strs) > 1 else "N/A",
+                        "ni_y2": ni_strs[2] if len(ni_strs) > 2 else "N/A",
+                        "debt_ratio": f"{stock['debt_ratios_3y'][0]:.1f}%",
+                        "reserve_ratio": f"{stock['reserve_ratios_3y'][0]:.1f}%",
+                        
+                        "news_headline": news_headline,
+                        "news_source": news_source,
+                    }
+                    
+                    html_content = template.render(**context)
+                    
+                    print(f"🌐 [{idx}/{total}] Rendering stock card for {name} ({ticker})...")
+                    page = browser.new_page()
+                    page.set_content(html_content, wait_until="networkidle")
+                    page.evaluate("document.fonts.ready")
+                    time.sleep(1.5)  # Wait for fonts to fully render
+                    
+                    element = page.locator(".card-container")
+                    screenshot_bytes = element.screenshot()
+                    page.close()
+                    
+                    print(f"📸 [{idx}/{total}] Stock card image for {name} generated successfully.")
+                    send_telegram_photo(screenshot_bytes)
+                    cards_sent += 1
+                    
+                except Exception as e:
+                    error_msg = f"⚠️ 종목 카드 렌더링 오류 ({name}): {str(e)[:200]}"
+                    print(error_msg)
+                    send_telegram_message(error_msg)
             
-            print(f"📸 Stock card image for {name} generated successfully.")
-            send_telegram_photo(screenshot_bytes)
-            cards_sent += 1
-            
-        except Exception as e:
-            error_msg = f"❌ 종목 카드 이미지 렌더링 오류 ({name}): {str(e)}"
-            print(error_msg)
+            browser.close()
     
-    print(f"🎉 Total {cards_sent} stock card(s) sent via Telegram.")
+    except Exception as e:
+        error_msg = f"❌ 인포그래픽 카드 생성 엔진 오류:\n`{str(e)[:300]}`\n\n(Playwright/크롬 브라우저 실행 문제일 수 있습니다)"
+        print(error_msg)
+        send_telegram_message(error_msg)
+    
+    print(f"🎉 Total {cards_sent}/{total} stock card(s) sent via Telegram.")
+
