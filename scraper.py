@@ -240,8 +240,8 @@ def fetch_naver_rise_list(market_type="kospi"):
     market_type: 'kospi' or 'kosdaq'
     Returns list of dicts.
     """
-    m_type = "kospi" if market_type.lower() == "kospi" else "kosdaq"
-    url = f"https://finance.naver.com/sise/sise_rise.naver?marketType={m_type}"
+    sosok = "0" if market_type.lower() == "kospi" else "1"
+    url = f"https://finance.naver.com/sise/sise_rise.naver?sosok={sosok}"
     
     try:
         response = requests.get(url, headers=HEADERS, timeout=15)
@@ -292,7 +292,7 @@ def fetch_naver_rise_list(market_type="kospi"):
                             "change_pct": change_pct,
                             "volume": volume,
                             "approx_value": approx_value,
-                            "market": "KOSPI" if m_type == "kospi" else "KOSDAQ"
+                            "market": "KOSPI" if sosok == "0" else "KOSDAQ"
                         })
                     except ValueError:
                         continue
