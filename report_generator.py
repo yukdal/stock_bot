@@ -134,7 +134,11 @@ def generate_mock_report(filtered_stocks, is_nxt=False):
             
         report += f"■ 종목명: {s['name']} ({s['ticker']}) [{s['market']}]\n"
         report += f"- 주도 테마: {s['sector']} (Mock Data)\n"
-        report += f"- 당일 등락률: {s['change_pct']:+.2f}% | 거래대금: {s['approx_value']/100000000:,.0f}억 원\n\n"
+        report += f"- 당일 등락률: {s['change_pct']:+.2f}% | 거래대금: {s['approx_value']/100000000:,.0f}억 원\n"
+        report += f"- 💰 예상 매수가: {s['close']:,}원 부근 분할매수 (Mock Data)\n"
+        report += f"- 🎯 목표 매도가: {int(s['close']*1.05):,}원 이상 익절 (Mock Data)\n"
+        report += f"- 🛑 손절가: {int(s['close']*0.95):,}원 이탈시 손절 (Mock Data)\n"
+        report += f"- 💡 추천 사유: 수급 및 거래량 폭발 기반 단기 시세 분출 기대 (Mock Data)\n\n"
         
         report += "📈 기술적 추세 (Trend Check)\n"
         report += f"- 1000일선 위치: [{ma_status}] (현재가: {s['close']:,}원 / 1000일선: {ma1000_val})\n"
@@ -178,7 +182,7 @@ def generate_report(filtered_stocks, analysis_log=None, is_nxt=False):
             report_text = response.text
         except Exception as e:
             print(f"❌ Gemini generation error: {e}. Falling back to structured local report.")
-            report_text = generate_mock_report(filtered_stocks)
+            report_text = generate_mock_report(filtered_stocks, is_nxt=is_nxt)
 
     if analysis_log:
         report_text += "\n<!-- SPLIT_HERE -->\n"
