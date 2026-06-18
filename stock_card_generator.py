@@ -217,9 +217,8 @@ def generate_stock_cards(filtered_stocks, report_text):
                     }
                     
                     html_content = template.render(**context)
-                    
                     print(f"🌐 [{idx}/{total}] Rendering stock card for {name} ({ticker})...")
-                    page = browser.new_page()
+                    page = browser.new_page(viewport={"width": 1280, "height": 1024})
                     page.set_content(html_content, wait_until="networkidle")
                     page.evaluate("document.fonts.ready")
                     time.sleep(1.5)  # Wait for fonts to fully render
