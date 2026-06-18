@@ -212,28 +212,41 @@ def generate_stock_cards(filtered_stocks, report_text):
                     html_content = template.render(**context)
                     
                     print(f"🌐 [{idx}/{total}] Rendering stock card for {name} ({ticker})...")
-                    with sync_playwright() as p:
-                        browser = p.chromium.launch(
-                            headless=True,
-                            args=['--no-sandbox', '--disable-dev-shm-usage']
-                        )
-                        page = browser.new_page(viewport={"width": 1280, "height": 1024})
-                        
-                        # Load content without waiting for networkidle to prevent timeout, just wait for load
-                        page.set_content(html_content, wait_until="load")
-                        try:
-                            page.evaluate("document.fonts.ready")
-                        except:
-                            pass
-                        time.sleep(1)
-                        
-                        element = page.locator(".card-container")
-                        screenshot_bytes = element.screenshot()
-                        browser.close()
                     
-                    print(f"📸 [{idx}/{total}] Stock card image for {name} generated successfully.")
-                    send_telegram_photo(screenshot_bytes)
-                    cards_sent += 1
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            with sync_playwright() as p:
+                                browser = p.chromium.launch(
+                                    headless=True,
+                                    args=['--no-sandbox', '--disable-dev-shm-usage']
+                                )
+                                # 뷰포트 세로 길이를 3000으로 늘려서 스크롤을 방지 (스크롤 중 타임아웃 됨)
+                                page = browser.new_page(viewport={"width": 1280, "height": 3000})
+                                
+                                page.set_content(html_content, wait_until="load", timeout=20000)
+                                try:
+                                    page.evaluate("document.fonts.ready")
+                                except:
+                                    pass
+                                time.sleep(1)
+                                
+                                element = page.locator(".card-container")
+                                screenshot_bytes = element.screenshot(timeout=15000)
+                                browser.close()
+                            
+                            print(f"📸 [{idx}/{total}] Stock card image for {name} generated successfully.")
+                            send_telegram_photo(screenshot_bytes)
+                            cards_sent += 1
+                            break  # Success, exit retry loop
+                            
+                        except Exception as inner_e:
+                            print(f"⚠️ 렌더링 시도 {attempt + 1}/{max_retries} 실패 ({name}): {str(inner_e)[:200]}")
+                            try: browser.close()
+                            except: pass
+                            if attempt == max_retries - 1:
+                                raise inner_e  # Re-raise to outer try-except on final failure
+                            time.sleep(2)
                     
         except Exception as e:
             error_msg = f"⚠️ 종목 카드 렌더링 오류 ({name}): {str(e)[:200]}"
