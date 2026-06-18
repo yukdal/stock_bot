@@ -126,24 +126,26 @@ def generate_stock_cards(filtered_stocks, report_text):
     # Build a lookup by ticker for quick matching
     parsed_lookup = {p["ticker"]: p for p in parsed_report}
     
+    # Filter only the selected stocks to generate cards for
+    selected_stocks = [s for s in filtered_stocks if s["ticker"] in parsed_lookup]
+    
     templates_dir = BASE_DIR / 'templates'
     env = Environment(loader=FileSystemLoader(str(templates_dir)))
     template = env.get_template('stock_card_widget.html')
     
     cards_sent = 0
-    total = len(filtered_stocks)
+    total = len(selected_stocks)
     
+    if total == 0:
+        print("⏭️ No stocks were selected by Gemini. Skipping infographic generation.")
+        return
+        
     send_telegram_message(f"🎨 종목별 인포그래픽 카드 생성을 시작합니다... ({total}개 종목)")
     
-    for idx, stock in enumerate(filtered_stocks, 1):
+    for idx, stock in enumerate(selected_stocks, 1):
         ticker = stock["ticker"]
         name = stock["name"]
         
-        # Check if the stock was actually selected by Gemini
-        if ticker not in parsed_lookup:
-            print(f"⏭️ [{idx}/{total}] Skipping {name} ({ticker}) - Not selected by Gemini")
-            continue
-            
         try:
                     # Get Gemini analysis if available, else use defaults
                     gemini_data = parsed_lookup.get(ticker, {})
