@@ -223,8 +223,8 @@ def generate_stock_cards(filtered_stocks, report_text):
                     page.evaluate("document.fonts.ready")
                     time.sleep(1.5)  # Wait for fonts to fully render
                     
-                    element = page.locator(".card-container")
-                    screenshot_bytes = element.screenshot()
+                    # Avoid locator timeout by taking full page screenshot directly
+                    screenshot_bytes = page.screenshot(full_page=True)
                     page.close()
                     
                     print(f"📸 [{idx}/{total}] Stock card image for {name} generated successfully.")
