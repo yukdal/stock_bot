@@ -112,7 +112,12 @@ def generate_mock_report(filtered_stocks, is_nxt=False):
         report += "오늘 조건(가격 10~30% 상승, 거래대금 100억 이상 등)을 통과한 종목이 없습니다.\n"
         return report
         
-    for s in filtered_stocks:
+    # Pick Top 3 by trade value
+    top_stocks = sorted(filtered_stocks, key=lambda x: x['approx_value'], reverse=True)[:3]
+    
+    report += "🏆 오늘의 TOP 스윙 추천주 (Mock Data Fallback)\n\n"
+    
+    for s in top_stocks:
         sd = s["supply_demand"]
         f_val_eok = sd['foreigner_val'] / 100000000
         o_val_eok = sd['organ_val'] / 100000000
@@ -155,6 +160,16 @@ def generate_mock_report(filtered_stocks, is_nxt=False):
         report += "📰 관련 핵심 뉴스 (Gemini 요약)\n"
         report += f"- \"{news_line}\" (출처: {news_source})\n"
         report += "--------------------------------------\n"
+        
+    report += "\n📊 필터링 통과 종목 전체 요약\n"
+    report += "| 종목명 | 티커 | 등락률 | 거래대금 | MA1000 위치 | 외국인수급 | 기관수급 |\n"
+    report += "|---|---|---|---|---|---|---|\n"
+    for s in filtered_stocks:
+        sd = s["supply_demand"]
+        f_val_eok = sd['foreigner_val'] / 100000000
+        o_val_eok = sd['organ_val'] / 100000000
+        ma_status = "위" if "ABOVE" in s['price_vs_ma_1000'] else "아래"
+        report += f"| {s['name']} | {s['ticker']} | {s['change_pct']:+.2f}% | {s['approx_value']/100000000:,.0f}억 | {ma_status} | {f_val_eok:+.0f}억 | {o_val_eok:+.0f}억 |\n"
         
     return report
 
