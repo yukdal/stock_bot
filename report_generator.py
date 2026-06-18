@@ -99,7 +99,7 @@ def build_prompt(filtered_stocks, is_nxt=False):
 """
     return prompt
 
-def generate_mock_report(filtered_stocks, is_nxt=False):
+def generate_mock_report(filtered_stocks, is_nxt=False, error_reason="알 수 없는 에러"):
     """
     Generate a high-quality Markdown report locally as a fallback
     when Gemini API key is missing or invalid.
@@ -107,6 +107,10 @@ def generate_mock_report(filtered_stocks, is_nxt=False):
     """
     report_title = "🚀 [NXT 통합] 오후 9시 넥스트레이드 반영 스윙 주도주 브리핑" if is_nxt else "🚀 [오후 8시 Gemini Pro 연동 스윙 주도주 브리핑]"
     report = f"{report_title}\n\n"
+    
+    report += f"⚠️ **[안내] 현재 브리핑은 AI 통신 문제로 인해 임시 생성된 비상용(Mock) 데이터입니다.**\n"
+    report += f"- 발생 사유: {error_reason}\n"
+    report += f"- 조치 안내: 잠시 후 다시 시도하거나 API 키 및 네트워크 상태를 확인해주세요.\n\n"
     
     if not filtered_stocks:
         report += "오늘 조건(가격 10~30% 상승, 거래대금 100억 이상 등)을 통과한 종목이 없습니다.\n"
@@ -178,10 +182,10 @@ def generate_report(filtered_stocks, analysis_log=None, is_nxt=False):
     Generate the complete analyst report using Gemini, falling back to mock report on failure.
     """
     if not filtered_stocks:
-        report_text = generate_mock_report(filtered_stocks, is_nxt=is_nxt)
+        report_text = generate_mock_report(filtered_stocks, is_nxt=is_nxt, error_reason="조건을 통과한 종목이 없음")
     elif not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_GEMINI_API_KEY":
         print("⚠️ Gemini API key is placeholder. Generating local structured report...")
-        report_text = generate_mock_report(filtered_stocks, is_nxt=is_nxt)
+        report_text = generate_mock_report(filtered_stocks, is_nxt=is_nxt, error_reason="API 키가 설정되지 않음")
     else:
         try:
             print(f"🤖 Connecting to Gemini API using model '{GEMINI_MODEL}'...")
@@ -197,7 +201,7 @@ def generate_report(filtered_stocks, analysis_log=None, is_nxt=False):
             report_text = response.text
         except Exception as e:
             print(f"❌ Gemini generation error: {e}. Falling back to structured local report.")
-            report_text = generate_mock_report(filtered_stocks, is_nxt=is_nxt)
+            report_text = generate_mock_report(filtered_stocks, is_nxt=is_nxt, error_reason=str(e)[:100])
 
     if analysis_log:
         report_text += "\n<!-- SPLIT_HERE -->\n"
