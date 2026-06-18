@@ -7,3 +7,5 @@ yfinance
 google-genai
 schedule
 python-dotenv
+jinja2
+playwright
