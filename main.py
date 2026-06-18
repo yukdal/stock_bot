@@ -81,7 +81,9 @@ def acquire_process_lock():
         lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         lock_socket.bind(('127.0.0.1', LOCK_PORT))
     except socket.error:
+        error_msg = f"⚠️ [시스템 알림] 스윙 봇 중복 실행(좀비봇)이 감지되었습니다.\n새로 실행된 프로세스는 시스템 보호를 위해 자동으로 강제 종료되었습니다.\n(현재 기존에 켜져 있던 정상 봇 1개만 안전하게 돌아가고 있습니다.)"
         print(f"\n❌ [중복 실행 방지] 이미 봇 스케줄러 인스턴스가 실행 중입니다. (포트 {LOCK_PORT} 사용 중) 프로그램을 종료합니다.")
+        send_telegram_message(error_msg)
         sys.exit(1)
 
 def main():
