@@ -135,18 +135,11 @@ def generate_stock_cards(filtered_stocks, report_text):
     
     send_telegram_message(f"🎨 종목별 인포그래픽 카드 생성을 시작합니다... ({total}개 종목)")
     
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=['--no-sandbox', '--disable-dev-shm-usage']
-            )
-            
-            for idx, stock in enumerate(filtered_stocks, 1):
-                ticker = stock["ticker"]
-                name = stock["name"]
-                
-                try:
+    for idx, stock in enumerate(filtered_stocks, 1):
+        ticker = stock["ticker"]
+        name = stock["name"]
+        
+        try:
                     # Get Gemini analysis if available, else use defaults
                     gemini_data = parsed_lookup.get(ticker, {})
                     
@@ -217,31 +210,35 @@ def generate_stock_cards(filtered_stocks, report_text):
                     }
                     
                     html_content = template.render(**context)
-                    print(f"🌐 [{idx}/{total}] Rendering stock card for {name} ({ticker})...")
-                    page = browser.new_page(viewport={"width": 1280, "height": 1024})
-                    page.set_content(html_content, wait_until="networkidle")
-                    page.evaluate("document.fonts.ready")
-                    time.sleep(1.5)  # Wait for fonts to fully render
                     
-                    element = page.locator(".card-container")
-                    screenshot_bytes = element.screenshot()
-                    page.close()
+                    print(f"🌐 [{idx}/{total}] Rendering stock card for {name} ({ticker})...")
+                    with sync_playwright() as p:
+                        browser = p.chromium.launch(
+                            headless=True,
+                            args=['--no-sandbox', '--disable-dev-shm-usage']
+                        )
+                        page = browser.new_page(viewport={"width": 1280, "height": 1024})
+                        
+                        # Load content without waiting for networkidle to prevent timeout, just wait for load
+                        page.set_content(html_content, wait_until="load")
+                        try:
+                            page.evaluate("document.fonts.ready")
+                        except:
+                            pass
+                        time.sleep(1)
+                        
+                        element = page.locator(".card-container")
+                        screenshot_bytes = element.screenshot()
+                        browser.close()
                     
                     print(f"📸 [{idx}/{total}] Stock card image for {name} generated successfully.")
                     send_telegram_photo(screenshot_bytes)
                     cards_sent += 1
                     
-                except Exception as e:
-                    error_msg = f"⚠️ 종목 카드 렌더링 오류 ({name}): {str(e)[:200]}"
-                    print(error_msg)
-                    send_telegram_message(error_msg)
-            
-            browser.close()
-    
-    except Exception as e:
-        error_msg = f"❌ 인포그래픽 카드 생성 엔진 오류:\n`{str(e)[:300]}`\n\n(Playwright/크롬 브라우저 실행 문제일 수 있습니다)"
-        print(error_msg)
-        send_telegram_message(error_msg)
+        except Exception as e:
+            error_msg = f"⚠️ 종목 카드 렌더링 오류 ({name}): {str(e)[:200]}"
+            print(error_msg)
+            send_telegram_message(error_msg)
     
     print(f"🎉 Total {cards_sent}/{total} stock card(s) sent via Telegram.")
 
