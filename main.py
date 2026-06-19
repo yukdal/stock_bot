@@ -163,7 +163,6 @@ def main():
     # Keep the script running with robust custom time checking
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     last_run_index = None
-    last_run_screener = None
     last_run_nxt = None
     
     # Catch-up logic on startup
@@ -174,11 +173,6 @@ def main():
         print("🚀 Startup Check: Triggering 15:45 KST Index Settlement immediately...")
         run_threaded(execute_index_closing)
         last_run_index = current_date
-        
-    if now_kst.time() >= datetime.time(20, 0) and current_date.weekday() < 5:
-        print("🚀 Startup Check: Triggering 20:00 KST Screener immediately...")
-        run_threaded(execute_pipeline, is_nxt=False)
-        last_run_screener = current_date
         
     if now_kst.time() >= datetime.time(21, 0) and current_date.weekday() < 5:
         print("🚀 Startup Check: Triggering 21:00 KST NXT Screener immediately...")
@@ -196,12 +190,6 @@ def main():
                 print(f"⏰ Triggering 15:45 KST Index Settlement...")
                 run_threaded(execute_index_closing)
                 last_run_index = current_date
-                
-            # 20:00 KST: Screener pipeline (KRX)
-            if current_time == "20:00" and last_run_screener != current_date:
-                print(f"⏰ Triggering 20:00 KST Screener...")
-                run_threaded(execute_pipeline, is_nxt=False)
-                last_run_screener = current_date
                 
             # 21:00 KST: Screener pipeline (NXT)
             if current_time == "21:00" and last_run_nxt != current_date:
