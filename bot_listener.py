@@ -17,7 +17,7 @@ def send_reply(chat_id, text):
     except Exception as e:
         print(f"⚠️ Error sending reply to {chat_id}: {e}")
 
-def process_updates(updates, screener_callback, index_callback, screener_nxt_callback=None):
+def process_updates(updates, screener_callback, index_callback):
     for update in updates:
         try:
             # Handle my_chat_member event (bot added to group)
@@ -62,17 +62,10 @@ def process_updates(updates, screener_callback, index_callback, screener_nxt_cal
                     send_reply(chat_id, "이미 등록된 채팅방입니다. 매일 리포트를 보내드릴게요!")
                     
             elif text.startswith("/ping"):
-                send_reply(chat_id, "🏓 봇이 정상적으로 작동 중입니다!\n\n📅 스케줄:\n- 15:45: 지수 정산 브리핑\n- 20:00: KRX 주도주 리포트 발송\n- 21:00: NXT 통합 주도주 리포트 발송\n\n수동 실행 명령어:\n`/index` - 지수 정산 즉시 실행\n`/run` - 주도주 스크리닝(KRX) 즉시 실행\n`/run_nxt` - 주도주 스크리닝(NXT통합) 즉시 실행")
+                send_reply(chat_id, "🏓 봇이 정상적으로 작동 중입니다!\n\n📅 스케줄:\n- 15:45: 지수 정산 브리핑\n- 21:00: 통합 주도주 리포트 발송\n\n수동 실행 명령어:\n`/index` - 지수 정산 즉시 실행\n`/run` - 통합 주도주 스크리닝 즉시 실행")
                 
-            elif text.startswith("/run_nxt"):
-                send_reply(chat_id, "🔄 즉시 [NXT 통합] 주도주 스크리닝 분석을 시작합니다. 데이터 수집 및 분석에 시간이 다소 소요될 수 있습니다. 잠시만 기다려주세요...")
-                if screener_nxt_callback:
-                    threading.Thread(target=screener_nxt_callback, daemon=True).start()
-                else:
-                    send_reply(chat_id, "⚠️ NXT 스크리닝 콜백이 연결되지 않았습니다.")
-                    
             elif text.startswith("/run"):
-                send_reply(chat_id, "🔄 즉시 [KRX] 주도주 스크리닝 분석을 시작합니다. 데이터 수집 및 분석에 시간이 다소 소요될 수 있습니다. 잠시만 기다려주세요...")
+                send_reply(chat_id, "🔄 즉시 통합 주도주 스크리닝 분석을 시작합니다. 데이터 수집 및 분석에 시간이 다소 소요될 수 있습니다. 잠시만 기다려주세요...")
                 if screener_callback:
                     threading.Thread(target=screener_callback, daemon=True).start()
                     
@@ -83,7 +76,7 @@ def process_updates(updates, screener_callback, index_callback, screener_nxt_cal
         except Exception as e:
             print(f"⚠️ Error processing a specific update: {e}")
 
-def poll_telegram(screener_callback, index_callback, screener_nxt_callback=None):
+def poll_telegram(screener_callback, index_callback):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
     offset = None
     
@@ -104,7 +97,7 @@ def poll_telegram(screener_callback, index_callback, screener_nxt_callback=None)
                 updates = data.get("result", [])
                 
                 if updates:
-                    process_updates(updates, screener_callback, index_callback, screener_nxt_callback)
+                    process_updates(updates, screener_callback, index_callback)
                     offset = updates[-1]["update_id"] + 1
             elif response.status_code == 409:
                 print("⚠️ Telegram API Conflict. Another polling instance might be running. Retrying...")
@@ -114,10 +107,10 @@ def poll_telegram(screener_callback, index_callback, screener_nxt_callback=None)
         except Exception as e:
             time.sleep(5)
 
-def start_bot_listener(screener_callback=None, index_callback=None, screener_nxt_callback=None):
+def start_bot_listener(screener_callback, index_callback):
     if not TELEGRAM_BOT_TOKEN:
         print("⚠️ No Telegram Bot Token found. Listener won't start.")
         return
         
-    listener_thread = threading.Thread(target=poll_telegram, args=(screener_callback, index_callback, screener_nxt_callback), daemon=True)
+    listener_thread = threading.Thread(target=poll_telegram, args=(screener_callback, index_callback), daemon=True)
     listener_thread.start()

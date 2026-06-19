@@ -158,7 +158,7 @@ def main():
     def screener_nxt_wrapper():
         execute_pipeline(is_nxt=True)
         
-    start_bot_listener(screener_callback=execute_pipeline, index_callback=execute_index_closing, screener_nxt_callback=screener_nxt_wrapper)
+    start_bot_listener(screener_callback=screener_nxt_wrapper, index_callback=execute_index_closing)
     
     # Keep the script running with robust custom time checking
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
