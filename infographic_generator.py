@@ -105,7 +105,7 @@ def generate_and_send_infographic(indices_data, macro_comment):
             page = browser.new_page(viewport={"width": 1400, "height": 1400})
             
             # Set HTML content and wait for fonts to load
-            page.set_content(html_content, wait_until="networkidle")
+            page.set_content(html_content, wait_until="load", timeout=30000)
             page.evaluate("document.fonts.ready")
             time.sleep(2) # Extra wait for web fonts to apply completely before screenshot
             
