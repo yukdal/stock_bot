@@ -95,9 +95,17 @@ def generate_and_send_infographic(indices_data, macro_comment):
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
-                args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-animations', '--disable-gpu']
+                args=[
+                    '--no-sandbox', 
+                    '--disable-dev-shm-usage', 
+                    '--disable-animations', 
+                    '--disable-gpu',
+                    '--single-process',
+                    '--no-zygote',
+                    '--disable-software-rasterizer'
+                ]
             )
-            page = browser.new_page(viewport={"width": 1200, "height": 1200})
+            page = browser.new_page(viewport={"width": 1000, "height": 1200})
             
             # Set HTML content and wait for fonts to load
             page.set_content(html_content, wait_until="networkidle")
@@ -106,14 +114,16 @@ def generate_and_send_infographic(indices_data, macro_comment):
             
             # Select the widget-container to take a screenshot of just that element
             element = page.locator(".widget-container")
-            screenshot_bytes = element.screenshot(animations="disabled", type="png")
+            screenshot_bytes = element.screenshot(animations="disabled", type="png", timeout=20000)
             
             browser.close()
             
         print("📸 Infographic image generated successfully.")
         
         # Send via Telegram
-        send_telegram_photo(screenshot_bytes)
+        success = send_telegram_photo(screenshot_bytes)
+        if not success:
+            raise Exception("텔레그램 이미지 발송 API 호출에 실패했습니다. (터미널 로그를 확인해주세요)")
         
     except Exception as e:
         error_msg = f"❌ 인포그래픽 이미지 렌더링 중 오류가 발생했습니다:\n`{str(e)}`\n\n(Playwright/크롬 브라우저 실행 문제일 가능성이 높습니다)"
