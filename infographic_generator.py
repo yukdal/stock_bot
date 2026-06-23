@@ -105,7 +105,7 @@ def generate_and_send_infographic(indices_data, macro_comment):
                     '--disable-software-rasterizer'
                 ]
             )
-            page = browser.new_page(viewport={"width": 1000, "height": 1200})
+            page = browser.new_page(viewport={"width": 1400, "height": 1400})
             
             # Set HTML content and wait for fonts to load
             page.set_content(html_content, wait_until="networkidle")
@@ -119,7 +119,14 @@ def generate_and_send_infographic(indices_data, macro_comment):
             # 요소의 절대 좌표(Bounding Box)를 계산하여 페이지 전체 스크린샷에서 해당 부분만 잘라냅니다.
             box = element.bounding_box()
             if box:
-                screenshot_bytes = page.screenshot(clip=box, type="png")
+                # 그림자(box-shadow)가 잘리지 않도록 상하좌우 여유 공간(패딩)을 추가합니다.
+                clip_box = {
+                    "x": max(0, box["x"] - 20),
+                    "y": max(0, box["y"] - 20),
+                    "width": box["width"] + 40,
+                    "height": box["height"] + 60
+                }
+                screenshot_bytes = page.screenshot(clip=clip_box, type="png")
             else:
                 # 좌표를 찾지 못한 경우 Fallback
                 screenshot_bytes = element.screenshot(animations="disabled", type="png", timeout=20000)
