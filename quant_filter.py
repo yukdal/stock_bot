@@ -36,15 +36,15 @@ def run_quant_filtering(is_nxt=False):
     
     print(f"📋 Total rise stocks scraped: {len(all_rise)} (KOSPI: {len(kospi_rise)}, KOSDAQ: {len(kosdaq_rise)})")
     
-    # 2. Filter by price return (10% to 30%) and trading value (>= 10 billion KRW)
-    # Note: 10 billion KRW is 10,000,000,000 KRW
+    # 2. Filter by price return (5% to 30.5%) and trading value (>= 20 billion KRW)
+    # Note: 20 billion KRW is 20,000,000,000 KRW
     price_val_filtered = []
     for s in all_rise:
-        if 10.0 <= s["change_pct"] <= 30.5:
-            if s["approx_value"] >= 10_000_000_000:
+        if 5.0 <= s["change_pct"] <= 30.5:
+            if s["approx_value"] >= 20_000_000_000:
                 price_val_filtered.append(s)
                 
-    print(f"🔍 Stocks passing price (10%-30%) and value (>= 10B KRW) filter: {len(price_val_filtered)}")
+    print(f"🔍 Stocks passing price (5%-30.5%) and value (>= 20B KRW) filter: {len(price_val_filtered)}")
     
     # Load DART mapping
     corp_map = get_corp_code_map(DART_API_KEY)
@@ -81,6 +81,7 @@ def run_quant_filtering(is_nxt=False):
             "기관_수급": None,
             "개인_수급": None,
             "Status": "Processing",
+            "Signal_Tag": "",
             "탈락사유": ""
         }
         
@@ -161,6 +162,14 @@ def run_quant_filtering(is_nxt=False):
         log_entry["Y0_부채비율(%)"] = round(debt_ratio_0, 1)
         log_entry["Y0_유보율(%)"] = round(reserve_ratio_0, 1)
         
+        # Risk Check: Extreme debt ratio (> 500%) exclusion
+        if debt_ratio_0 > 500:
+            print(f"❌ {name} excluded: Extreme debt ratio in latest year ({debt_ratio_0:.1f}%)")
+            log_entry["Status"] = "Failed"
+            log_entry["탈락사유"] = "과도한 부채비율 (상폐 우려)"
+            analysis_log.append(log_entry)
+            continue
+        
         # Check condition: 부채비율 < 유보율 for all 3 years
         cond_0 = debt_ratio_0 < reserve_ratio_0
         cond_1 = debt_ratio_1 < reserve_ratio_1
@@ -204,11 +213,31 @@ def run_quant_filtering(is_nxt=False):
             df = pd.DataFrame(hist_data)
             df['stck_clpr'] = df['stck_clpr'].astype(float)
             df['acml_vol'] = df['acml_vol'].astype(float)
+            
+            # Use safe get for high price if available
+            if 'stck_hgpr' in df.columns:
+                df['stck_hgpr'] = df['stck_hgpr'].astype(float)
+            
             df = df.iloc[::-1].reset_index(drop=True)
             
             # Current prices and volumes
             current_price = df["stck_clpr"].iloc[-1]
             volume_today = df["acml_vol"].iloc[-1]
+            
+            # Upper tail exclusion check (변동성 지표 임계치)
+            if 'stck_hgpr' in df.columns:
+                high_price = df["stck_hgpr"].iloc[-1]
+                # Calculate approximate previous close
+                prev_close = current_price / (1 + s["change_pct"]/100)
+                high_pct = (high_price - prev_close) / prev_close * 100
+                
+                # Rule: High > 25% but Close < 10% indicates long upper tail (차익실현 매물 폭탄)
+                if high_pct >= 25.0 and s["change_pct"] < 10.0:
+                    print(f"❌ {name} excluded: Long upper tail (High: {high_pct:.1f}%, Close: {s['change_pct']:.1f}%)")
+                    log_entry["Status"] = "Failed"
+                    log_entry["탈락사유"] = "긴 위꼬리 (매물 출회)"
+                    analysis_log.append(log_entry)
+                    continue
             
             # Technical Indicators
             # A. 1000-day Moving Average (MA 1000)
@@ -228,6 +257,14 @@ def run_quant_filtering(is_nxt=False):
             # C. Volume Explosion (vs 20-day average volume)
             volume_avg_20 = df["acml_vol"].iloc[-21:-1].mean()
             volume_ratio = (volume_today / volume_avg_20 * 100) if volume_avg_20 > 0 else 0
+            
+            # Liquidity Check (품절주 차단)
+            if volume_avg_20 < 100000:
+                print(f"❌ {name} excluded: Low liquidity (20-day avg volume: {volume_avg_20:.0f})")
+                log_entry["Status"] = "Failed"
+                log_entry["탈락사유"] = "품절주 (유동성 부족)"
+                analysis_log.append(log_entry)
+                continue
             
             log_entry["MA1000"] = ma_1000
             log_entry["MA1000_위치"] = price_vs_ma_1000
@@ -261,6 +298,27 @@ def run_quant_filtering(is_nxt=False):
             log_entry["기관_수급"] = organ_qty
             log_entry["개인_수급"] = individual_qty
             
+            # Signal Tagging for NotebookLM Logic
+            tech_signal = []
+            if is_aligned:
+                tech_signal.append("정배열")
+            if volume_ratio >= 300:
+                tech_signal.append("거래량폭발")
+            
+            supply_signal = []
+            if foreigner_val > 0 and organ_val > 0:
+                supply_signal.append("외인기관 양매수")
+            elif organ_val > 0:
+                supply_signal.append("기관 연속매집" if organ_qty > 50000 else "기관 순매수")
+            elif foreigner_val > 0:
+                supply_signal.append("외인 순매수")
+                
+            if not tech_signal: tech_signal.append("기술적양호")
+            if not supply_signal: supply_signal.append("개인주도")
+            
+            signal_tag = f"[수급: {'+'.join(supply_signal)}] [기술적: {'+'.join(tech_signal)}]"
+            log_entry["Signal_Tag"] = signal_tag
+            
             # Aggregate news and sector
             sector, news_list = aggregate_news(name, ticker)
             
@@ -292,7 +350,8 @@ def run_quant_filtering(is_nxt=False):
                     "program_val": "N/A"
                 },
                 "sector": sector,
-                "news": news_list
+                "news": news_list,
+                "signal_tag": signal_tag
             })
             
             log_entry["Status"] = "Passed"

@@ -12,7 +12,7 @@ from quant_filter import run_quant_filtering
 from report_generator import generate_report
 from notifier import send_telegram_message, send_telegram_document
 from bot_listener import start_bot_listener
-from index_closing import execute_index_closing
+from index_closing import execute_index_closing, check_and_send_crash_alerts
 
 BASE_DIR = Path(__file__).resolve().parent
 REPORTS_DIR = BASE_DIR / "reports"
@@ -164,6 +164,7 @@ def main():
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
     last_run_index = None
     last_run_nxt = None
+    last_crash_check = None
     
     # Catch-up logic on startup
     now_kst = datetime.datetime.now(kst_tz)
@@ -184,6 +185,13 @@ def main():
             now_kst = datetime.datetime.now(kst_tz)
             current_time = now_kst.strftime("%H:%M")
             current_date = now_kst.date()
+            
+            # 30-minute index crash monitor (09:00 ~ 15:30)
+            if now_kst.time() >= datetime.time(9, 0) and now_kst.time() <= datetime.time(15, 30) and current_date.weekday() < 5:
+                if current_time.endswith(":00") or current_time.endswith(":30"):
+                    if last_crash_check != current_time:
+                        run_threaded(check_and_send_crash_alerts)
+                        last_crash_check = current_time
             
             # 15:45 KST: Index closing settlement
             if current_time == "15:45" and last_run_index != current_date:

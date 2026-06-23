@@ -10,6 +10,12 @@ INDICES = {
     "S&P 500": "^GSPC"
 }
 
+CRASH_STATE = {
+    "date": None,
+    "KOSPI": 0,
+    "KOSDAQ": 0
+}
+
 def fetch_index_data(name, ticker):
     """
     특정 지수의 당일/전일 종가 및 직전 전고점(Swing High)을 계산합니다.
@@ -154,6 +160,46 @@ def execute_index_closing():
 
     except Exception as e:
         print(f"❌ Error occurred during index settlement execution: {e}")
+
+def check_and_send_crash_alerts():
+    """장중 30분 단위로 급락 여부를 체크하여 알림 발송"""
+    global CRASH_STATE
+    today = datetime.date.today()
+    
+    # 매일 자정 상태 초기화
+    if CRASH_STATE["date"] != today:
+        CRASH_STATE["date"] = today
+        CRASH_STATE["KOSPI"] = 0
+        CRASH_STATE["KOSDAQ"] = 0
+
+    print(f"🔍 [{datetime.datetime.now().strftime('%H:%M:%S')}] Checking Index Crash Alerts...")
+    
+    for name, ticker in [("KOSPI", INDICES["KOSPI"]), ("KOSDAQ", INDICES["KOSDAQ"])]:
+        data = fetch_index_data(name, ticker)
+        if not data: continue
+        
+        lh_pct = data["local_high_pct"]
+        if lh_pct > 0: continue # 상승 구간이면 무시
+        
+        drop_pct = abs(lh_pct)
+        threshold = int(drop_pct // 5) * 5
+        
+        min_threshold = 10 if name == "KOSPI" else 20
+        
+        if threshold >= min_threshold and threshold > CRASH_STATE[name]:
+            CRASH_STATE[name] = threshold
+            
+            c_close = f"{data['current_close']:,.2f}"
+            pt_chg = format_number(data['point_change'], is_pct=False)
+            pct_chg = format_number(data['pct_change'], is_pct=True)
+            
+            msg = f"🚨 **[시장 급락 경보] {name} 직전 고점 대비 -{threshold}% 돌파!** 🚨\n\n"
+            msg += f"현재 지수가 최근 전고점 대비 심각한 하락 구간에 진입했습니다.\n"
+            msg += f"■ **현재 {name} 지수**: {c_close} ({pt_chg}pt, {pct_chg})\n"
+            msg += f"■ **전고점 대비 하락률**: -{drop_pct:.2f}%\n\n"
+            msg += f"투심 악화 및 반대매매 물량 출회 가능성에 유의하시어 철저한 리스크 관리를 권장합니다."
+            send_telegram_message(msg)
+            print(f"🚨 Crash alert sent for {name}: -{threshold}%")
 
 if __name__ == "__main__":
     execute_index_closing()
