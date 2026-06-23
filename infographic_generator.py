@@ -99,10 +99,7 @@ def generate_and_send_infographic(indices_data, macro_comment):
                     '--no-sandbox', 
                     '--disable-dev-shm-usage', 
                     '--disable-animations', 
-                    '--disable-gpu',
-                    '--single-process',
-                    '--no-zygote',
-                    '--disable-software-rasterizer'
+                    '--disable-gpu'
                 ]
             )
             page = browser.new_page(viewport={"width": 1400, "height": 1400})
