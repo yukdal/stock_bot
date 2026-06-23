@@ -95,9 +95,9 @@ def generate_and_send_infographic(indices_data, macro_comment):
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
-                args=['--no-sandbox', '--disable-dev-shm-usage']
+                args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-animations', '--disable-gpu']
             )
-            page = browser.new_page()
+            page = browser.new_page(viewport={"width": 1200, "height": 1200})
             
             # Set HTML content and wait for fonts to load
             page.set_content(html_content, wait_until="networkidle")
@@ -106,7 +106,7 @@ def generate_and_send_infographic(indices_data, macro_comment):
             
             # Select the widget-container to take a screenshot of just that element
             element = page.locator(".widget-container")
-            screenshot_bytes = element.screenshot()
+            screenshot_bytes = element.screenshot(animations="disabled", type="png")
             
             browser.close()
             
