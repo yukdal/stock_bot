@@ -200,8 +200,8 @@ def generate_report(filtered_stocks, analysis_log=None, is_nxt=False):
             print("✅ Gemini report generated successfully!")
             report_text = response.text
         except Exception as e:
-            print(f"❌ Gemini generation error: {e}. Falling back to structured local report.")
-            report_text = generate_mock_report(filtered_stocks, is_nxt=is_nxt, error_reason=str(e)[:100])
+            print(f"❌ Gemini generation error: {e}. Raising exception for retry logic.")
+            raise Exception(f"Gemini API 오류: {e}")
 
     if analysis_log:
         report_text += "\n<!-- SPLIT_HERE -->\n"

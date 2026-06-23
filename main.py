@@ -51,7 +51,15 @@ def execute_pipeline(is_nxt=False):
             print(f"📊 Analysis source data saved locally to {csv_path}")
         
         # 2. Generate Analyst Report
-        report_text = generate_report(filtered_stocks, analysis_log, is_nxt=is_nxt)
+        while True:
+            try:
+                report_text = generate_report(filtered_stocks, analysis_log, is_nxt=is_nxt)
+                break
+            except Exception as api_err:
+                error_msg = f"⚠️ AI 리포트 생성 실패\n\n원인: {api_err}\n\n서버 과부하 등 통신 문제로 판단되어 30분 뒤에 리포트 생성을 자동으로 재시도합니다."
+                print(error_msg)
+                send_telegram_message(error_msg)
+                time.sleep(1800)
         
         # 3. Save Report Locally
         date_str = today.strftime("%Y%m%d")
