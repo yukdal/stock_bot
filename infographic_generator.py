@@ -114,7 +114,15 @@ def generate_and_send_infographic(indices_data, macro_comment):
             
             # Select the widget-container to take a screenshot of just that element
             element = page.locator(".widget-container")
-            screenshot_bytes = element.screenshot(animations="disabled", type="png", timeout=20000)
+            
+            # Element.screenshot()에서 계속 안정성 검사 대기(Timeout)가 발생하는 문제를 우회하기 위해
+            # 요소의 절대 좌표(Bounding Box)를 계산하여 페이지 전체 스크린샷에서 해당 부분만 잘라냅니다.
+            box = element.bounding_box()
+            if box:
+                screenshot_bytes = page.screenshot(clip=box, type="png")
+            else:
+                # 좌표를 찾지 못한 경우 Fallback
+                screenshot_bytes = element.screenshot(animations="disabled", type="png", timeout=20000)
             
             browser.close()
             
