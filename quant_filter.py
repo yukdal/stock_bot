@@ -36,15 +36,15 @@ def run_quant_filtering(is_nxt=False):
     
     print(f"📋 Total rise stocks scraped: {len(all_rise)} (KOSPI: {len(kospi_rise)}, KOSDAQ: {len(kosdaq_rise)})")
     
-    # 2. Filter by price return (5% to 30.5%) and trading value (>= 20 billion KRW)
+    # 2. Filter by price return (10% to 30.5%) and trading value (>= 20 billion KRW)
     # Note: 20 billion KRW is 20,000,000,000 KRW
     price_val_filtered = []
     for s in all_rise:
-        if 5.0 <= s["change_pct"] <= 30.5:
+        if 10.0 <= s["change_pct"] <= 30.5:
             if s["approx_value"] >= 20_000_000_000:
                 price_val_filtered.append(s)
                 
-    print(f"🔍 Stocks passing price (5%-30.5%) and value (>= 20B KRW) filter: {len(price_val_filtered)}")
+    print(f"🔍 Stocks passing price (10%-30.5%) and value (>= 20B KRW) filter: {len(price_val_filtered)}")
     
     # Load DART mapping
     corp_map = get_corp_code_map(DART_API_KEY)
