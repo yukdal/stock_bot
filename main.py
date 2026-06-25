@@ -56,7 +56,12 @@ def execute_pipeline(is_nxt=False):
                 report_text = generate_report(filtered_stocks, analysis_log, is_nxt=is_nxt)
                 break
             except Exception as api_err:
-                error_msg = f"⚠️ AI 리포트 생성 실패\n\n원인: {api_err}\n\n서버 과부하 등 통신 문제로 판단되어 30분 뒤에 리포트 생성을 자동으로 재시도합니다."
+                error_msg = (
+                    f"⚠️ **[안내] 현재 AI 분석이 불가능하여 목업(Mock) 데이터만 사용 가능한 상태입니다.**\n\n"
+                    f"- 원인: {api_err}\n"
+                    f"- 안내: 부정확한 목업 데이터 기반의 종목 분석은 진행하지 않습니다.\n"
+                    f"- 조치: 30분 단위로 자동 재시도하며, 정상적으로 AI 분석이 가능한 시점에 종목 분석 리포트를 생성하여 알려드리겠습니다."
+                )
                 print(error_msg)
                 send_telegram_message(error_msg)
                 time.sleep(1800)
