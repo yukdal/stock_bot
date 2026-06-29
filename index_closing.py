@@ -111,7 +111,7 @@ def format_number(val, is_pct=False):
     else:
         return f"{sign}{abs(val):.2f}"
 
-def execute_index_closing():
+def execute_index_closing(*args, **kwargs):
     """오후 3시 45분에 단독 실행되는 메인 파이프라인"""
     today = datetime.date.today()
     if today.weekday() >= 5:
