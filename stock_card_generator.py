@@ -248,9 +248,17 @@ def generate_stock_cards(filtered_stocks, report_text):
                             break  # Success, exit retry loop
                             
                         except Exception as inner_e:
-                            print(f"⚠️ 렌더링 시도 {attempt + 1}/{max_retries} 실패 ({name}): {str(inner_e)[:200]}")
+                            err_str = str(inner_e)
+                            print(f"⚠️ 렌더링 시도 {attempt + 1}/{max_retries} 실패 ({name}): {err_str[:200]}")
                             try: browser.close()
                             except: pass
+                            
+                            if "Executable doesn't exist" in err_str or "playwright install" in err_str:
+                                print("🔧 Playwright 브라우저 바이너리가 없습니다. 자동으로 설치를 시도합니다 (playwright install chromium)...")
+                                import sys, subprocess
+                                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
+                                print("💡 참고: 리눅스 서버에서 라이브러리 종속성 문제가 발생할 경우 터미널에서 'playwright install-deps'를 실행해야 할 수 있습니다.")
+                                
                             if attempt == max_retries - 1:
                                 raise inner_e  # Re-raise to outer try-except on final failure
                             time.sleep(2)

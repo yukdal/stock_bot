@@ -92,43 +92,66 @@ def generate_and_send_infographic(indices_data, macro_comment):
         html_content = template.render(**context)
         
         print("🌐 Rendering HTML with Playwright...")
-        with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=[
-                    '--no-sandbox', 
-                    '--disable-dev-shm-usage', 
-                    '--disable-animations', 
-                    '--disable-gpu'
-                ]
-            )
-            page = browser.new_page(viewport={"width": 1400, "height": 1400})
-            
-            # Set HTML content and wait for fonts to load
-            page.set_content(html_content, wait_until="load", timeout=30000)
-            page.evaluate("document.fonts.ready")
-            time.sleep(2) # Extra wait for web fonts to apply completely before screenshot
-            
-            # Select the widget-container to take a screenshot of just that element
-            element = page.locator(".widget-container")
-            
-            # Element.screenshot()에서 계속 안정성 검사 대기(Timeout)가 발생하는 문제를 우회하기 위해
-            # 요소의 절대 좌표(Bounding Box)를 계산하여 페이지 전체 스크린샷에서 해당 부분만 잘라냅니다.
-            box = element.bounding_box()
-            if box:
-                # 그림자(box-shadow)가 잘리지 않도록 상하좌우 여유 공간(패딩)을 추가합니다.
-                clip_box = {
-                    "x": max(0, box["x"] - 20),
-                    "y": max(0, box["y"] - 20),
-                    "width": box["width"] + 40,
-                    "height": box["height"] + 60
-                }
-                screenshot_bytes = page.screenshot(clip=clip_box, type="png")
-            else:
-                # 좌표를 찾지 못한 경우 Fallback
-                screenshot_bytes = element.screenshot(animations="disabled", type="png", timeout=20000)
-            
-            browser.close()
+        screenshot_bytes = None
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(
+                        headless=True,
+                        args=[
+                            '--no-sandbox', 
+                            '--disable-dev-shm-usage', 
+                            '--disable-animations', 
+                            '--disable-gpu'
+                        ]
+                    )
+                    page = browser.new_page(viewport={"width": 1400, "height": 1400})
+                    
+                    # Set HTML content and wait for fonts to load
+                    page.set_content(html_content, wait_until="load", timeout=30000)
+                    try:
+                        page.evaluate("document.fonts.ready")
+                    except:
+                        pass
+                    time.sleep(2) # Extra wait for web fonts to apply completely before screenshot
+                    
+                    # Select the widget-container to take a screenshot of just that element
+                    element = page.locator(".widget-container")
+                    
+                    # Element.screenshot()에서 계속 안정성 검사 대기(Timeout)가 발생하는 문제를 우회하기 위해
+                    # 요소의 절대 좌표(Bounding Box)를 계산하여 페이지 전체 스크린샷에서 해당 부분만 잘라냅니다.
+                    box = element.bounding_box()
+                    if box:
+                        # 그림자(box-shadow)가 잘리지 않도록 상하좌우 여유 공간(패딩)을 추가합니다.
+                        clip_box = {
+                            "x": max(0, box["x"] - 20),
+                            "y": max(0, box["y"] - 20),
+                            "width": box["width"] + 40,
+                            "height": box["height"] + 60
+                        }
+                        screenshot_bytes = page.screenshot(clip=clip_box, type="png")
+                    else:
+                        # 좌표를 찾지 못한 경우 Fallback
+                        screenshot_bytes = element.screenshot(animations="disabled", type="png", timeout=20000)
+                    
+                    browser.close()
+                    break # 성공 시 루프 탈출
+            except Exception as inner_e:
+                err_str = str(inner_e)
+                print(f"⚠️ 인포그래픽 렌더링 시도 {attempt + 1}/{max_retries} 실패: {err_str[:200]}")
+                try: browser.close()
+                except: pass
+                
+                if "Executable doesn't exist" in err_str or "playwright install" in err_str:
+                    print("🔧 Playwright 브라우저 바이너리가 없습니다. 자동으로 설치를 시도합니다 (playwright install chromium)...")
+                    import sys, subprocess
+                    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
+                    print("💡 참고: 리눅스 서버에서 라이브러리 종속성 문제가 발생할 경우 터미널에서 'playwright install-deps'를 실행해야 할 수 있습니다.")
+                
+                if attempt == max_retries - 1:
+                    raise inner_e # 최종 실패 시 예외 발생
+                time.sleep(2)
             
         print("📸 Infographic image generated successfully.")
         
