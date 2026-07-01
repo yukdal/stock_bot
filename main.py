@@ -97,7 +97,7 @@ def execute_pipeline(is_nxt=False):
     except Exception as e:
         print(f"❌ Error occurred during pipeline execution: {e}")
 
-LOCK_PORT = 18385
+LOCK_PORT = 18386
 lock_socket = None
 
 def acquire_process_lock():

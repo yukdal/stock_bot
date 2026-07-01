@@ -105,11 +105,6 @@ def main():
         
         # 1. Update current folder .env
         update_env_file(parent_dir / ".env", token, chat_id)
-        
-        # 2. Try to find the other project folder and update .env there
-        sibling_dir = parent_dir.parent / "1. 주식선물 가격제한 알림 어플"
-        if sibling_dir.exists():
-            update_env_file(sibling_dir / ".env", token, chat_id)
             
         print("\n✨ Configuration update completed! You are ready to run the bots.")
     else:
