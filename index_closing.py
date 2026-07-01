@@ -16,6 +16,51 @@ CRASH_STATE = {
     "KOSDAQ": 0
 }
 
+def fetch_realtime_index_multi_api(name):
+    """
+    KOSPI/KOSDAQ 실시간 지수 조회를 KIS -> Kiwoom -> Toss -> Naver 순으로 시도합니다.
+    """
+    ticker_code = "0001" if name == "KOSPI" else "1001"
+    
+    # 1. KIS API
+    try:
+        from kis_api import get_kis_current_index
+        kis_data = get_kis_current_index(ticker_code)
+        if kis_data: return kis_data
+    except Exception as e:
+        print(f"❌ KIS API Index fallback failed for {name}: {e}")
+        
+    # 2. Kiwoom API
+    try:
+        from kiwoom_api import get_kiwoom_current_index
+        kiwoom_data = get_kiwoom_current_index(name)
+        if kiwoom_data: return kiwoom_data
+    except Exception as e:
+        print(f"❌ Kiwoom API Index fallback failed for {name}: {e}")
+        
+    # 3. Toss API
+    try:
+        from toss_api import get_toss_current_index
+        toss_data = get_toss_current_index(name)
+        if toss_data: return toss_data
+    except Exception as e:
+        print(f"❌ Toss API Index fallback failed for {name}: {e}")
+        
+    # 4. Naver Finance (최후 보루)
+    try:
+        url = f"https://polling.finance.naver.com/api/realtime/domestic/index/{name}"
+        import requests
+        r = requests.get(url, timeout=10)
+        data = r.json()['datas'][0]
+        return {
+            "current_close": float(data['closePrice'].replace(',', '')),
+            "point_change": float(data['compareToPreviousClosePrice'].replace(',', '')),
+            "pct_change": float(data['fluctuationsRatio'].replace(',', ''))
+        }
+    except Exception as e:
+        print(f"❌ Naver Finance Index fallback failed for {name}: {e}")
+        return None
+
 def fetch_index_data(name, ticker):
     """
     특정 지수의 당일/전일 종가 및 직전 전고점(Swing High)을 계산합니다.
@@ -38,14 +83,12 @@ def fetch_index_data(name, ticker):
         max_df = idx.history(period="5y") # 52주 제한 없이 넉넉하게 5년치에서 최근 고점 탐색
         
         if name in ["KOSPI", "KOSDAQ"]:
-            # Fetch real-time data from Naver Finance because Yahoo is 1-day delayed at 15:45 KST
-            url = f"https://polling.finance.naver.com/api/realtime/domestic/index/{name}"
-            import requests
-            r = requests.get(url, timeout=10)
-            data = r.json()['datas'][0]
-            current_close = float(data['closePrice'].replace(',', ''))
-            point_change = float(data['compareToPreviousClosePrice'].replace(',', ''))
-            pct_change = float(data['fluctuationsRatio'].replace(',', ''))
+            realtime_data = fetch_realtime_index_multi_api(name)
+            if not realtime_data:
+                raise Exception(f"All APIs failed to fetch {name} real-time data.")
+            current_close = realtime_data['current_close']
+            point_change = realtime_data['point_change']
+            pct_change = realtime_data['pct_change']
         else:
             # S&P 500 uses yfinance (US market already closed)
             recent_df = idx.history(period="5d").dropna(subset=['Close'])
@@ -193,11 +236,36 @@ def check_and_send_crash_alerts():
             pt_chg = format_number(data['point_change'], is_pct=False)
             pct_chg = format_number(data['pct_change'], is_pct=True)
             
-            msg = f"🚨 **[시장 급락 경보] {name} 직전 고점 대비 -{threshold}% 돌파!** 🚨\n\n"
-            msg += f"현재 지수가 최근 전고점 대비 심각한 하락 구간에 진입했습니다.\n"
-            msg += f"■ **현재 {name} 지수**: {c_close} ({pt_chg}pt, {pct_chg})\n"
-            msg += f"■ **전고점 대비 하락률**: -{drop_pct:.2f}%\n\n"
-            msg += f"투심 악화 및 반대매매 물량 출회 가능성에 유의하시어 철저한 리스크 관리를 권장합니다."
+            from kis_api import get_etf_current_price
+            
+            etfs = []
+            if name == "KOSPI":
+                etfs = [
+                    ("KODEX 200", "069500"),
+                    ("KODEX 레버리지", "122630")
+                ]
+            else: # KOSDAQ
+                etfs = [
+                    ("KODEX 코스닥150", "229200"),
+                    ("KODEX 코스닥150레버리지", "233740")
+                ]
+                
+            etf_messages = []
+            for etf_name, ticker in etfs:
+                etf_data = get_etf_current_price(ticker)
+                if etf_data:
+                    price_str = f"{etf_data['price']:,}"
+                    chg = etf_data['change_rate']
+                    sign = "+" if chg > 0 else ""
+                    etf_messages.append(f"{etf_name} ({ticker}): {price_str}원 ({sign}{chg:.2f}%)")
+                else:
+                    etf_messages.append(f"{etf_name} ({ticker}): 데이터 응답 지연")
+            
+            msg = f"[🚨 {name} 지수 하락 알림 - stock_bot]\n"
+            msg += f"현재 {name} 지수: {c_close} ({pct_chg})\n\n"
+            msg += f"💡 연동 상품 실시간 현재가:\n\n"
+            msg += "\n\n".join(etf_messages)
+            
             send_telegram_message(msg)
             print(f"🚨 Crash alert sent for {name}: -{threshold}%")
 

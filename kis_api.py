@@ -263,3 +263,124 @@ if __name__ == "__main__":
         inv = fetch_investor_trend("005930")
         if inv:
             print(f"Investor trend: {inv}")
+
+def get_kis_current_index(ticker_code):
+    """
+    Fetch current real-time index price.
+    ticker_code: "0001" (KOSPI), "1001" (KOSDAQ)
+    TR_ID: FHPUP02100000 (주식업종현재가)
+    """
+    token = get_access_token()
+    if token:
+        url = f"{KIS_URL_BASE}/uapi/domestic-stock/v1/quotations/inquire-index-price"
+        
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "authorization": f"Bearer {token}",
+            "appKey": KIS_APP_KEY,
+            "appSecret": KIS_APP_SECRET,
+            "tr_id": "FHPUP02100000",
+        }
+        
+        params = {
+            "FID_COND_MRKT_DIV_CODE": "U", # 업종
+            "FID_INPUT_ISCD": ticker_code
+        }
+        
+        try:
+            res = requests.get(url, headers=headers, params=params, timeout=10)
+            if res.status_code == 200:
+                data = res.json()
+                if data.get("rt_cd") == "0":
+                    output = data.get("output", {})
+                    if output:
+                        current_close = float(output.get("bstp_nmix_prpr", 0))
+                        point_change = float(output.get("bstp_nmix_prdy_vrss", 0))
+                        pct_change = float(output.get("bstp_nmix_prdy_ctrt", 0.0))
+                        return {
+                            "current_close": current_close,
+                            "point_change": point_change,
+                            "pct_change": pct_change
+                        }
+            print(f"⚠️ KIS Index API Error for {ticker_code}: {res.text}")
+        except Exception as e:
+            print(f"❌ Error fetching current index for {ticker_code}: {e}")
+            
+    return None
+
+def get_etf_current_price(ticker):
+    """
+    Fetch current real-time price for a specific ETF or stock.
+    TR_ID: FHKST01010100 (주식현재가 시세)
+    Provides a fallback to yfinance previous close if the API fails.
+    """
+    token = get_access_token()
+    if token:
+        url = f"{KIS_URL_BASE}/uapi/domestic-stock/v1/quotations/inquire-price"
+        
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "authorization": f"Bearer {token}",
+            "appKey": KIS_APP_KEY,
+            "appSecret": KIS_APP_SECRET,
+            "tr_id": "FHKST01010100",
+        }
+        
+        params = {
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_INPUT_ISCD": ticker
+        }
+        
+        try:
+            res = requests.get(url, headers=headers, params=params, timeout=10)
+            if res.status_code == 200:
+                data = res.json()
+                if data.get("rt_cd") == "0":
+                    output = data.get("output", {})
+                    if output:
+                        current_price = int(output.get("stck_prpr", 0))
+                        change_rate = float(output.get("prdy_ctrt", 0.0))
+                        return {
+                            "price": current_price,
+                            "change_rate": change_rate
+                        }
+            print(f"⚠️ KIS Price API Error for {ticker}: {res.text}")
+        except Exception as e:
+            print(f"❌ Error fetching current price for {ticker}: {e}")
+            
+    # Fallback 1: Kiwoom API
+    try:
+        from kiwoom_api import fetch_kiwoom_daily_price
+        hist = fetch_kiwoom_daily_price(ticker)
+        if hist and len(hist) >= 2:
+            curr = float(hist[0]['stck_clpr'])
+            prev = float(hist[1]['stck_clpr'])
+            chg = ((curr - prev) / prev) * 100 if prev > 0 else 0.0
+            return {"price": int(curr), "change_rate": round(chg, 2)}
+    except Exception as e_kiwoom:
+        print(f"❌ Kiwoom fallback failed for {ticker}: {e_kiwoom}")
+            
+    # Fallback 2: Toss API
+    try:
+        from toss_api import get_toss_current_price
+        toss_data = get_toss_current_price(ticker)
+        if toss_data:
+            return toss_data
+    except Exception as e_toss:
+        print(f"❌ Toss fallback failed for {ticker}: {e_toss}")
+            
+    # Fallback 3: yfinance (previous close)
+    try:
+        import yfinance as yf
+        suffix = ".KS" if ticker in ["069500", "122630"] else ".KQ"
+        df = yf.Ticker(f"{ticker}{suffix}").history(period="5d")
+        if not df.empty:
+            curr = df['Close'].iloc[-1]
+            prev = df['Close'].iloc[-2] if len(df) > 1 else curr
+            chg = ((curr - prev) / prev) * 100 if prev > 0 else 0.0
+            return {"price": int(curr), "change_rate": round(chg, 2)}
+    except Exception as e2:
+        print(f"❌ yfinance fallback failed for {ticker}: {e2}")
+        
+    return None
+

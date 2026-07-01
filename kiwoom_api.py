@@ -109,3 +109,18 @@ if __name__ == "__main__":
         hist = fetch_kiwoom_daily_price("005930")
         if hist:
             print(f"Fetched {len(hist)} days from Kiwoom. Latest: {hist[0]}")
+
+def get_kiwoom_current_index(market_type):
+    """
+    Fetch current real-time index from Kiwoom.
+    market_type: "KOSPI" or "KOSDAQ"
+    """
+    # Note: Kiwoom REST API usually requires different API ID for indices (e.g. opt20001).
+    # Since we don't have the exact REST endpoint for index current price in this wrapper yet,
+    # we leave it as a template that returns None to trigger the next fallback (Toss/Naver).
+    token = get_kiwoom_access_token()
+    if not token:
+        return None
+        
+    return None
+

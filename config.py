@@ -17,6 +17,8 @@ KIS_APP_SECRET = os.getenv("KIS_APP_SECRET")
 KIS_ENV = os.getenv("KIS_ENV", "PROD")
 KIWOOM_APP_KEY = os.getenv("KIWOOM_APP_KEY")
 KIWOOM_APP_SECRET = os.getenv("KIWOOM_APP_SECRET")
+TOSS_APP_KEY = os.getenv("TOSS_APP_KEY")
+TOSS_APP_SECRET = os.getenv("TOSS_APP_SECRET")
 
 # Model Configuration
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
