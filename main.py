@@ -160,6 +160,9 @@ def main():
     print("📅 NXT Screener is scheduled to run every Mon-Fri at 21:00 KST.")
     print("👉 Use Ctrl+C to terminate.")
     
+    # 봇 시작 알림 텔레그램 발송
+    send_telegram_message("🚀 [시스템 알림] 스윙종목 분석 봇이 정상 작동을 시작했습니다. (스케줄러 대기 중)")
+    
     # Define a wrapper to run jobs in background threads so they don't block the scheduler
     def run_threaded(job_func, *args, **kwargs):
         import threading
