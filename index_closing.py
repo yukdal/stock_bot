@@ -244,31 +244,31 @@ def check_and_send_crash_alerts():
                     ("KODEX 200", "069500"),
                     ("KODEX 레버리지", "122630")
                 ]
-            else: # KOSDAQ
+            elif name == "KOSDAQ":
                 etfs = [
                     ("KODEX 코스닥150", "229200"),
                     ("KODEX 코스닥150레버리지", "233740")
                 ]
                 
             etf_messages = []
-            for etf_name, ticker in etfs:
-                etf_data = get_etf_current_price(ticker)
+            for etf_name, etf_code in etfs:
+                etf_data = get_etf_current_price(etf_code)
                 if etf_data:
                     price_str = f"{etf_data['price']:,}"
                     chg = etf_data['change_rate']
                     sign = "+" if chg > 0 else ""
-                    etf_messages.append(f"{etf_name} ({ticker}): {price_str}원 ({sign}{chg:.2f}%)")
+                    etf_messages.append(f"{etf_name} ({etf_code}): {price_str}원 ({sign}{chg:.2f}%)")
                 else:
-                    etf_messages.append(f"{etf_name} ({ticker}): 데이터 응답 지연")
+                    etf_messages.append(f"{etf_name} ({etf_code}): 데이터 응답 지연")
             
-            actual_drop_pct = f"{data['local_high_pct']:.2f}%"
+            actual_drop_pct = f"{data['local_high_pct']:.2f}"
             
-            msg = f"🚨 시장 급락 경보 {name} 직전 고점 대비 -{threshold}% 돌파! 🚨\n\n"
-            msg += f"현재 지수가 최근 전고점 대비 심각한 하락 구간에 진입했습니다.\n"
-            msg += f"■ 현재 {name} 지수: {c_close} ({pt_chg}pt, {pct_chg})\n"
-            msg += f"■ 전고점 대비 하락률: {actual_drop_pct}\n\n"
-            msg += f"투심 악화 및 반대매매 물량 출회 가능성에 유의하시어 철저한 리스크 관리를 권장합니다.\n\n"
-            msg += f"💡 연동 상품 실시간 현재가:\n\n"
+            msg = f"🚨 시장 급락 경보 {name} 직전 고점 대비 {actual_drop_pct}% 돌파! 🚨\n\n"
+            msg += "현재 지수가 최근 전고점 대비 심각한 하락 구간에 진입했습니다.\n"
+            msg += f"■ 현재 {name} 지수: {c_close} ({pt_chg}, {pct_chg})\n"
+            msg += f"■ 전고점 대비 하락률: {actual_drop_pct}%\n\n"
+            msg += "투심 악화 및 반대매매 물량 출회 가능성에 유의하시어 철저한 리스크 관리를 권장합니다.\n\n"
+            msg += "💡 연동 상품 실시간 현재가:\n\n"
             msg += "\n\n".join(etf_messages)
             
             send_telegram_message(msg)
