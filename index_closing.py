@@ -230,6 +230,11 @@ def check_and_send_crash_alerts():
         min_threshold = 10 if name == "KOSPI" else 20
         
         if threshold >= min_threshold and threshold > CRASH_STATE[name]:
+            current_10_level = int(drop_pct // 10) * 10
+            prev_10_level = int(CRASH_STATE[name] // 10) * 10
+            
+            is_buy_signal = (current_10_level >= 30 and current_10_level > prev_10_level)
+            
             CRASH_STATE[name] = threshold
             
             c_close = f"{data['current_close']:,.2f}"
@@ -263,11 +268,20 @@ def check_and_send_crash_alerts():
             
             actual_drop_pct = f"{data['local_high_pct']:.2f}"
             
-            msg = f"🚨 시장 급락 경보 {name} 직전 고점 대비 -{threshold}% 돌파! 🚨\n\n"
-            msg += "현재 지수가 최근 전고점 대비 심각한 하락 구간에 진입했습니다.\n"
-            msg += f"■ 현재 {name} 지수: {c_close} ({pt_chg}pt, {pct_chg})\n"
-            msg += f"■ 전고점 대비 하락률: {actual_drop_pct}%\n\n"
-            msg += "투심 악화 및 반대매매 물량 출회 가능성에 유의하시어 철저한 리스크 관리를 권장합니다.\n\n"
+            if is_buy_signal:
+                buy_tier = (current_10_level - 20) // 10
+                msg = f"🚨 시장 급락 경보 {name} 직전 고점 대비 -{current_10_level}% 돌파! 🚨\n\n"
+                msg += f"현재 지수가 최근 전고점 대비 심각한 하락 구간에 진입하여 [{buy_tier}차 매수 추천] 알림을 발송합니다.\n"
+                msg += f"■ 현재 {name} 지수: {c_close} ({pt_chg}pt, {pct_chg})\n"
+                msg += f"■ 전고점 대비 하락률: {actual_drop_pct}%\n\n"
+                msg += "투심 악화 및 반대매매 물량 출회 가능성에 유의하시되, 룰 베이스 분할 매수 전략에 의거해 대응하시길 바랍니다.\n\n"
+            else:
+                msg = f"🚨 시장 급락 경보 {name} 직전 고점 대비 -{threshold}% 돌파! 🚨\n\n"
+                msg += "현재 지수가 최근 전고점 대비 심각한 하락 구간에 진입했습니다.\n"
+                msg += f"■ 현재 {name} 지수: {c_close} ({pt_chg}pt, {pct_chg})\n"
+                msg += f"■ 전고점 대비 하락률: {actual_drop_pct}%\n\n"
+                msg += "투심 악화 및 반대매매 물량 출회 가능성에 유의하시어 철저한 리스크 관리를 권장합니다.\n\n"
+            
             msg += "💡 연동 상품 실시간 현재가:\n\n"
             msg += "\n\n".join(etf_messages)
             
