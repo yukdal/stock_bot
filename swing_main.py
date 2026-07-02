@@ -6,6 +6,7 @@ import time
 import socket
 import schedule
 import pandas as pd
+import subprocess
 from pathlib import Path
 from config import validate_config
 from quant_filter import run_quant_filtering
@@ -97,6 +98,70 @@ def execute_pipeline(is_nxt=False):
     except Exception as e:
         print(f"❌ Error occurred during pipeline execution: {e}")
 
+def trigger_oci_deployment():
+    """
+    Git Push 성공 시 OCI 서버에 자동 배포(Update)를 수행하는 쉘 스크립트를 트리거합니다.
+    """
+    script_path = os.environ.get('OCI_DEPLOY_SCRIPT_PATH', './deploy_oci.sh')
+    
+    if not os.path.exists(script_path):
+        print(f"⚠️ [OCI 배포] 쉘 스크립트를 찾을 수 없습니다: {script_path}")
+        return
+        
+    print(f"🚀 [OCI 배포] 원격 서버 배포 스크립트를 실행합니다: {script_path}")
+    try:
+        # 실시간 로그 출력을 위해 Popen 사용 및 stdout/stderr 캡처
+        process = subprocess.Popen(
+            [script_path], 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE,
+            text=True,
+            shell=True
+        )
+        
+        # 표준 출력 실시간 스트리밍
+        for line in process.stdout:
+            print(f"[OCI stdout] {line.strip()}")
+            
+        # 에러 출력 스트리밍
+        for line in process.stderr:
+            print(f"[OCI stderr] {line.strip()}")
+            
+        process.wait()
+        
+        if process.returncode == 0:
+            print("✅ [OCI 배포] 클라우드 인프라 자동 배포가 성공적으로 완료되었습니다!")
+        else:
+            print(f"⚠️ [OCI 배포] 쉘 스크립트 실행 완료되었으나 에러(return code {process.returncode})가 발생했습니다.")
+            
+    except Exception as e:
+        # 배포 실패 시에도 메인 봇 프로세스가 죽지 않도록 완벽히 방어
+        print(f"❌ [OCI 배포] 배포 스크립트 실행 중 오류 발생 (메인 봇은 정상 동작 유지): {e}")
+
+def auto_git_sync():
+    """
+    백그라운드에서 변경사항 발생 시 자동으로 Git Add, Commit, Push를 수행합니다.
+    """
+    try:
+        status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+        if status.stdout.strip():
+            current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            print(f"🔄 [{current_time}] Git modifications detected. Auto-syncing...")
+            subprocess.run(["git", "add", "."], check=True)
+            
+            commit_msg = f"auto: bot sync update {datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            subprocess.run(["git", "commit", "-m", commit_msg], check=True)
+            
+            push_res = subprocess.run(["git", "push"], capture_output=True, text=True)
+            if push_res.returncode == 0:
+                print("✅ Auto-sync completed and pushed to GitHub.")
+                # Git 푸시 성공 시 OCI 자동 배포 트리거
+                trigger_oci_deployment()
+            else:
+                print(f"⚠️ Auto-sync push failed (check network/remote): {push_res.stderr}")
+    except Exception as e:
+        print(f"❌ Error during auto_git_sync: {e}")
+
 LOCK_PORT = 18386
 lock_socket = None
 
@@ -175,6 +240,42 @@ def main():
         execute_pipeline(is_nxt=True)
         
     start_bot_listener(screener_callback=screener_nxt_wrapper, index_callback=execute_index_closing)
+    
+    # Start Git auto-sync event-driven daemon
+    try:
+        from watchdog.observers import Observer
+        from watchdog.events import FileSystemEventHandler
+
+        class GitSyncHandler(FileSystemEventHandler):
+            def __init__(self):
+                super().__init__()
+                self.last_sync = 0
+            
+            def on_any_event(self, event):
+                if event.is_directory:
+                    return
+                
+                # 운영체제 임시 파일이나 git, report, logs, cache 폴더 등은 무시 (무한루프 방지)
+                ignore_paths = [".git", "reports", "logs", "__pycache__", ".venv", ".tmp", "~", ".cache", "chat_ids.json"]
+                if any(ignored in event.src_path for ignored in ignore_paths):
+                    return
+                    
+                current_time = time.time()
+                # 과도한 동기화 방지 (디바운싱 10초)
+                if current_time - self.last_sync > 10:
+                    self.last_sync = current_time
+                    # 파일 쓰기가 온전히 완료되도록 잠시 대기 후 스레드로 동기화 실행
+                    def delayed_sync():
+                        time.sleep(1)
+                        auto_git_sync()
+                    run_threaded(delayed_sync)
+
+        observer = Observer()
+        observer.schedule(GitSyncHandler(), path=str(BASE_DIR), recursive=True)
+        observer.start()
+        print("🔄 Git Auto-sync daemon started (event-driven real-time).")
+    except ImportError:
+        print("⚠️ 'watchdog' 모듈이 없습니다. 실시간 자동 동기화를 위해 'pip install watchdog'을 실행해주세요.")
     
     # Keep the script running with robust custom time checking
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))

@@ -9,3 +9,4 @@ schedule
 python-dotenv
 jinja2
 playwright
+watchdog
