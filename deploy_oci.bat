@@ -10,7 +10,7 @@ echo ---------------------------------------------------
 :: [실행 명령어 작성 위치]
 :: 아래 주석(::)을 풀고 선생님의 실제 서버 정보를 입력해 주세요.
 :: ---------------------------------------------------
-ssh -i "C:\Users\박진영(ParkJinyoung)\Documents\개인\OneDrive\Study\2. AI 공부\빛오형 AI강의\G2core\G2-oci-key" ubuntu@134.185.100.24 "cd /home/ubuntu/stock_bot && git pull origin main && pm2 restart stockbot"
+ssh -i "C:\Users\박진영(ParkJinyoung)\Documents\개인\OneDrive\Study\2. AI 공부\빛오형 AI강의\G2core\G2-oci-key" ubuntu@134.185.100.24 "cd /home/ubuntu/stock_bot && git pull origin main && sudo systemctl restart stock_bot"
 
 echo ---------------------------------------------------
 echo [OCI 배포 완료]
