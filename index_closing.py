@@ -263,9 +263,9 @@ def check_and_send_crash_alerts():
             
             actual_drop_pct = f"{data['local_high_pct']:.2f}"
             
-            msg = f"🚨 시장 급락 경보 {name} 직전 고점 대비 {actual_drop_pct}% 돌파! 🚨\n\n"
+            msg = f"🚨 시장 급락 경보 {name} 직전 고점 대비 -{threshold}% 돌파! 🚨\n\n"
             msg += "현재 지수가 최근 전고점 대비 심각한 하락 구간에 진입했습니다.\n"
-            msg += f"■ 현재 {name} 지수: {c_close} ({pt_chg}, {pct_chg})\n"
+            msg += f"■ 현재 {name} 지수: {c_close} ({pt_chg}pt, {pct_chg})\n"
             msg += f"■ 전고점 대비 하락률: {actual_drop_pct}%\n\n"
             msg += "투심 악화 및 반대매매 물량 출회 가능성에 유의하시어 철저한 리스크 관리를 권장합니다.\n\n"
             msg += "💡 연동 상품 실시간 현재가:\n\n"
