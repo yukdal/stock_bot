@@ -102,21 +102,24 @@ def trigger_oci_deployment():
     """
     Git Push 성공 시 OCI 서버에 자동 배포(Update)를 수행하는 쉘 스크립트를 트리거합니다.
     """
-    script_path = os.environ.get('OCI_DEPLOY_SCRIPT_PATH', './deploy_oci.sh')
+    # 윈도우 환경이면 기본값을 .bat으로, 리눅스/맥이면 .sh로 지정
+    default_script = './deploy_oci.bat' if os.name == 'nt' else './deploy_oci.sh'
+    script_path = os.environ.get('OCI_DEPLOY_SCRIPT_PATH', default_script)
     
     if not os.path.exists(script_path):
-        print(f"⚠️ [OCI 배포] 쉘 스크립트를 찾을 수 없습니다: {script_path}")
+        print(f"⚠️ [OCI 배포] 배포 스크립트를 찾을 수 없습니다: {script_path}")
         return
         
     print(f"🚀 [OCI 배포] 원격 서버 배포 스크립트를 실행합니다: {script_path}")
     try:
         # 실시간 로그 출력을 위해 Popen 사용 및 stdout/stderr 캡처
+        # 윈도우 배치 파일은 shell=True 필수
         process = subprocess.Popen(
             [script_path], 
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE,
             text=True,
-            shell=True
+            shell=(os.name == 'nt')
         )
         
         # 표준 출력 실시간 스트리밍
