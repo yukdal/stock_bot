@@ -36,15 +36,24 @@ def run_quant_filtering(is_nxt=False):
     
     print(f"📋 Total rise stocks scraped: {len(all_rise)} (KOSPI: {len(kospi_rise)}, KOSDAQ: {len(kosdaq_rise)})")
     
-    # 2. Filter by price return (10% to 30.5%) and trading value (>= 20 billion KRW)
-    # Note: 20 billion KRW is 20,000,000,000 KRW
+    # 2. Filter by price return (10% to 30.5%) and trading value (>= 5 billion KRW) + Negative Filtering
     price_val_filtered = []
     for s in all_rise:
+        # 🚫 네거티브 필터링 제약조건 적용 (동전주, 50억 미만, 위험종목 제외)
+        if s["close"] < 1000:
+            continue # 동전주(1,000원 미만) 제외
+        if s["approx_value"] < 5_000_000_000:
+            continue # 거래대금 50억 미만 제외
+            
+        # 종목명에 투자경고/위험/정지/환기/관리 등 리스크 태그가 있는 경우 제외
+        risk_keywords = ["경고", "위험", "정지", "환기", "관리"]
+        if any(keyword in s["name"] for keyword in risk_keywords):
+            continue
+            
         if 10.0 <= s["change_pct"] <= 30.5:
-            if s["approx_value"] >= 20_000_000_000:
-                price_val_filtered.append(s)
+            price_val_filtered.append(s)
                 
-    print(f"🔍 Stocks passing price (10%-30.5%) and value (>= 20B KRW) filter: {len(price_val_filtered)}")
+    print(f"🔍 Stocks passing price (10%-30.5%) and negative filters: {len(price_val_filtered)}")
     
     # Load DART mapping
     corp_map = get_corp_code_map(DART_API_KEY)
