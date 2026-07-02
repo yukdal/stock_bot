@@ -2,7 +2,7 @@ import requests
 from config import TELEGRAM_BOT_TOKEN
 from chat_manager import get_all_chat_ids
 
-def send_telegram_message(text, chat_id=None):
+def send_telegram_message(text, chat_id=None, parse_mode="Markdown"):
     """
     Send a message to all configured Telegram chats, or a specific chat_id if provided.
     If the message exceeds 4096 characters, split it into chunks.
@@ -63,9 +63,11 @@ def send_telegram_message(text, chat_id=None):
             payload = {
                 "chat_id": chat_id,
                 "text": chunk,
-                "parse_mode": "Markdown",
                 "disable_web_page_preview": True
             }
+            if parse_mode:
+                payload["parse_mode"] = parse_mode
+
             try:
                 r = requests.post(url, json=payload, timeout=15)
                 # If markdown parsing fails (e.g. unclosed asterisks), fall back to plain text
