@@ -222,14 +222,7 @@ def main():
     # 중복 실행 방지 락 획득 (OCI 및 로컬 겸용)
     acquire_process_lock()
     
-    print("🕰️ Starting daily robust scheduler mode...")
-    print("📅 Index Settlement is scheduled to run every Mon-Fri at 15:45 KST.")
-    print("📅 KRX Screener is scheduled to run every Mon-Fri at 20:00 KST.")
-    print("📅 NXT Screener is scheduled to run every Mon-Fri at 21:00 KST.")
-    print("👉 Use Ctrl+C to terminate.")
-    
-    # 봇 시작 알림 텔레그램 발송
-    send_telegram_message("🚀 [시스템 알림] 스윙종목 분석 봇이 정상 작동을 시작했습니다. (스케줄러 대기 중)")
+    is_local_env = (os.name == 'nt')
     
     # Define a wrapper to run jobs in background threads so they don't block the scheduler
     def run_threaded(job_func, *args, **kwargs):
@@ -242,7 +235,17 @@ def main():
     def screener_nxt_wrapper():
         execute_pipeline(is_nxt=True)
         
-    start_bot_listener(screener_callback=screener_nxt_wrapper, index_callback=execute_index_closing)
+    if is_local_env:
+        print("🖥️ [로컬 개발 환경] 중복 알림 방지를 위해 스케줄러와 텔레그램 챗봇 리스너를 비활성화합니다.")
+        print("👉 실시간 Git 자동 동기화(Watchdog) 및 OCI 배포 데몬만 백그라운드에서 실행됩니다.")
+    else:
+        print("🕰️ Starting daily robust scheduler mode (Production Server)...")
+        print("📅 Index Settlement is scheduled to run every Mon-Fri at 15:45 KST.")
+        print("📅 NXT Screener is scheduled to run every Mon-Fri at 21:00 KST.")
+        send_telegram_message("🚀 [시스템 알림] 스윙종목 분석 봇이 서버에서 정상 작동을 시작했습니다. (스케줄러 대기 중)")
+        start_bot_listener(screener_callback=screener_nxt_wrapper, index_callback=execute_index_closing)
+    
+    print("👉 Use Ctrl+C to terminate.")
     
     # Start Git auto-sync event-driven daemon
     try:
@@ -290,18 +293,25 @@ def main():
     now_kst = datetime.datetime.now(kst_tz)
     current_date = now_kst.date()
     
-    if now_kst.time() >= datetime.time(15, 45) and current_date.weekday() < 5:
-        print("🚀 Startup Check: Triggering 15:45 KST Index Settlement immediately...")
-        run_threaded(execute_index_closing)
-        last_run_index = current_date
-        
-    if now_kst.time() >= datetime.time(21, 0) and current_date.weekday() < 5:
-        print("🚀 Startup Check: Triggering 21:00 KST NXT Screener immediately...")
-        run_threaded(execute_pipeline, is_nxt=True)
-        last_run_nxt = current_date
+    # 서버 환경(리눅스)일 때만 구동 시 즉시 실행 스케줄러 검사
+    if not is_local_env:
+        if now_kst.time() >= datetime.time(15, 45) and current_date.weekday() < 5:
+            print("🚀 Startup Check: Triggering 15:45 KST Index Settlement immediately...")
+            run_threaded(execute_index_closing)
+            last_run_index = current_date
+            
+        if now_kst.time() >= datetime.time(21, 0) and current_date.weekday() < 5:
+            print("🚀 Startup Check: Triggering 21:00 KST NXT Screener immediately...")
+            run_threaded(execute_pipeline, is_nxt=True)
+            last_run_nxt = current_date
     
     try:
         while True:
+            # 로컬(Windows) 환경에서는 Watchdog 유지를 위해 sleep만 수행하고 스케줄러는 건너뜁니다.
+            if is_local_env:
+                time.sleep(10)
+                continue
+                
             now_kst = datetime.datetime.now(kst_tz)
             current_time = now_kst.strftime("%H:%M")
             current_date = now_kst.date()
