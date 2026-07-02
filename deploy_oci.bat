@@ -10,7 +10,7 @@ echo ---------------------------------------------------
 :: [실행 명령어 작성 위치]
 :: 아래 주석(::)을 풀고 선생님의 실제 서버 정보를 입력해 주세요.
 :: ---------------------------------------------------
-:: ssh -i "C:\Users\박진영(ParkJinyoung)\.ssh\oci_key" opc@<서버_IP주소> "cd /home/opc/<봇_폴더명> && git pull origin main && pm2 restart stockbot"
+:: ssh -i "C:\Users\박진영(ParkJinyoung)\Documents\개인\OneDrive\Study\2. AI 공부\빛오형 AI강의\G2core\G2-oci-key" opc@134.185.100.24 "cd /home/opc/stock_bot && git pull origin main && pm2 restart stockbot"
 
 echo "알림: deploy_oci.bat 파일 안의 SSH 접속 명령어가 아직 설정되지 않았습니다. 파일을 열어 서버 정보를 기입해 주세요."
 
