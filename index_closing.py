@@ -227,15 +227,18 @@ def check_and_send_crash_alerts():
         drop_pct = abs(lh_pct)
         threshold = int(drop_pct // 5) * 5
         
+        current_prev_state = CRASH_STATE[name]
+        
+        # 당일 상승(회복) 시에도 상태를 업데이트하여, 다시 하락 돌파할 때 알림이 울릴 수 있도록 함
+        CRASH_STATE[name] = threshold
+        
         min_threshold = 10 if name == "KOSPI" else 20
         
-        if threshold >= min_threshold and threshold > CRASH_STATE[name]:
+        if threshold >= min_threshold and threshold > current_prev_state:
             current_10_level = int(drop_pct // 10) * 10
-            prev_10_level = int(CRASH_STATE[name] // 10) * 10
+            prev_10_level = int(current_prev_state // 10) * 10
             
             is_buy_signal = (current_10_level >= 30 and current_10_level > prev_10_level)
-            
-            CRASH_STATE[name] = threshold
             
             c_close = f"{data['current_close']:,.2f}"
             pt_chg = format_number(data['point_change'], is_pct=False)
