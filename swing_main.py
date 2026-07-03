@@ -316,9 +316,9 @@ def main():
             current_time = now_kst.strftime("%H:%M")
             current_date = now_kst.date()
             
-            # 30-minute index crash monitor (09:00 ~ 15:30)
+            # 15-minute index crash monitor (09:00 ~ 15:30)
             if now_kst.time() >= datetime.time(9, 0) and now_kst.time() <= datetime.time(15, 30) and current_date.weekday() < 5:
-                if current_time.endswith(":00") or current_time.endswith(":30"):
+                if current_time.endswith(":00") or current_time.endswith(":15") or current_time.endswith(":30") or current_time.endswith(":45"):
                     if last_crash_check != current_time:
                         run_threaded(check_and_send_crash_alerts)
                         last_crash_check = current_time
