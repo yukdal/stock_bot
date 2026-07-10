@@ -285,40 +285,42 @@ def main():
     print("👉 Use Ctrl+C to terminate.")
     
     # Start Git auto-sync event-driven daemon
-    try:
-        from watchdog.observers import Observer
-        from watchdog.events import FileSystemEventHandler
+    # (로컬 개발 PC 전용 - 서버는 cron 기반 auto_update.sh가 GitHub에서 코드를 받아가므로 불필요)
+    if is_local_env:
+        try:
+            from watchdog.observers import Observer
+            from watchdog.events import FileSystemEventHandler
 
-        class GitSyncHandler(FileSystemEventHandler):
-            def __init__(self):
-                super().__init__()
-                self.last_sync = 0
-            
-            def on_any_event(self, event):
-                if event.is_directory:
-                    return
-                
-                # 운영체제 임시 파일이나 git, report, logs, cache 폴더 등은 무시 (무한루프 방지)
-                ignore_paths = [".git", "reports", "logs", "__pycache__", ".venv", ".tmp", "~", ".cache", "chat_ids.json"]
-                if any(ignored in event.src_path for ignored in ignore_paths):
-                    return
-                    
-                current_time = time.time()
-                # 과도한 동기화 방지 (디바운싱 10초)
-                if current_time - self.last_sync > 10:
-                    self.last_sync = current_time
-                    # 파일 쓰기가 온전히 완료되도록 잠시 대기 후 스레드로 동기화 실행
-                    def delayed_sync():
-                        time.sleep(1)
-                        auto_git_sync()
-                    run_threaded(delayed_sync)
+            class GitSyncHandler(FileSystemEventHandler):
+                def __init__(self):
+                    super().__init__()
+                    self.last_sync = 0
 
-        observer = Observer()
-        observer.schedule(GitSyncHandler(), path=str(BASE_DIR), recursive=True)
-        observer.start()
-        print("🔄 Git Auto-sync daemon started (event-driven real-time).")
-    except ImportError:
-        print("⚠️ 'watchdog' 모듈이 없습니다. 실시간 자동 동기화를 위해 'pip install watchdog'을 실행해주세요.")
+                def on_any_event(self, event):
+                    if event.is_directory:
+                        return
+
+                    # 운영체제 임시 파일이나 git, report, logs, cache 폴더 등은 무시 (무한루프 방지)
+                    ignore_paths = [".git", "reports", "logs", "__pycache__", "venv", ".tmp", "~", ".cache", "chat_ids.json"]
+                    if any(ignored in event.src_path for ignored in ignore_paths):
+                        return
+
+                    current_time = time.time()
+                    # 과도한 동기화 방지 (디바운싱 10초)
+                    if current_time - self.last_sync > 10:
+                        self.last_sync = current_time
+                        # 파일 쓰기가 온전히 완료되도록 잠시 대기 후 스레드로 동기화 실행
+                        def delayed_sync():
+                            time.sleep(1)
+                            auto_git_sync()
+                        run_threaded(delayed_sync)
+
+            observer = Observer()
+            observer.schedule(GitSyncHandler(), path=str(BASE_DIR), recursive=True)
+            observer.start()
+            print("🔄 Git Auto-sync daemon started (event-driven real-time, local only).")
+        except ImportError:
+            print("⚠️ 'watchdog' 모듈이 없습니다. 실시간 자동 동기화를 위해 'pip install watchdog'을 실행해주세요.")
     
     # Keep the script running with robust custom time checking
     kst_tz = datetime.timezone(datetime.timedelta(hours=9))
