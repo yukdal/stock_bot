@@ -19,6 +19,10 @@ KIWOOM_APP_KEY = os.getenv("KIWOOM_APP_KEY")
 KIWOOM_APP_SECRET = os.getenv("KIWOOM_APP_SECRET")
 TOSS_APP_KEY = os.getenv("TOSS_APP_KEY")
 TOSS_APP_SECRET = os.getenv("TOSS_APP_SECRET")
+# KRX 정보데이터시스템(data.krx.co.kr) 로그인 정보 (pykrx 수급/지수 조회용, 선택사항)
+# load_dotenv가 .env의 값을 환경변수로 올려주므로 pykrx가 자동으로 인식합니다.
+KRX_ID = os.getenv("KRX_ID")
+KRX_PW = os.getenv("KRX_PW")
 
 # Model Configuration
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")

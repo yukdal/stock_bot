@@ -12,6 +12,7 @@ from scraper import (
 import requests
 from config import DART_API_KEY
 from kiwoom_api import fetch_kiwoom_daily_price
+from krx_api import fetch_krx_daily_price, fetch_krx_investor_trend
 
 def run_quant_filtering(is_nxt=False):
     """
@@ -212,11 +213,18 @@ def run_quant_filtering(is_nxt=False):
                     hist_data = kiwoom_data
                     print(f"✅ Successfully fetched data from Kiwoom REST API for {name}.")
                 else:
-                    print(f"⚠️ Not enough history from both KIS and Kiwoom APIs for {name}. Skipping.")
-                    log_entry["Status"] = "Failed"
-                    log_entry["탈락사유"] = f"과거 데이터 부족 (KIS/Kiwoom 모두 실패)"
-                    analysis_log.append(log_entry)
-                    continue
+                    # 키움까지 실패하면 마지막으로 KRX(한국거래소, pykrx)에서 일봉 데이터를 시도
+                    print(f"⚠️ Kiwoom data insufficient for {name}. Falling back to KRX (pykrx)...")
+                    krx_data = fetch_krx_daily_price(ticker)
+                    if krx_data and len(krx_data) >= 60:
+                        hist_data = krx_data
+                        print(f"✅ Successfully fetched data from KRX for {name}.")
+                    else:
+                        print(f"⚠️ Not enough history from KIS/Kiwoom/KRX APIs for {name}. Skipping.")
+                        log_entry["Status"] = "Failed"
+                        log_entry["탈락사유"] = f"과거 데이터 부족 (KIS/Kiwoom/KRX 모두 실패)"
+                        analysis_log.append(log_entry)
+                        continue
                 
             # Convert to DataFrame and reverse to chronological order
             df = pd.DataFrame(hist_data)
@@ -285,6 +293,11 @@ def run_quant_filtering(is_nxt=False):
             
             # 5. Fetch Supply/Demand via KIS API
             inv_data = fetch_investor_trend(ticker)
+
+            # KIS 수급 조회 실패 시 KRX(pykrx)에서 투자자별 순매수 데이터로 폴백
+            if not inv_data:
+                print(f"⚠️ KIS investor data unavailable for {name}. Falling back to KRX...")
+                inv_data = fetch_krx_investor_trend(ticker)
             foreigner_qty = 0
             organ_qty = 0
             individual_qty = 0

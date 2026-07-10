@@ -119,6 +119,12 @@ GEMINI_API_KEY=발급받은_키
 # 텔레그램 봇 토큰 및 받을 채팅방 ID
 TELEGRAM_BOT_TOKEN=봇파더에게_받은_토큰
 TELEGRAM_CHAT_ID=내_채팅방_ID
+
+# (선택) KRX 정보데이터시스템 로그인 정보 - pykrx 수급/지수 조회용
+# data.krx.co.kr 에서 무료 회원가입 후 아이디/비밀번호를 입력하세요.
+# 미입력 시에도 KRX 일봉(주가) 폴백은 정상 동작합니다.
+KRX_ID=KRX_사이트_아이디
+KRX_PW=KRX_사이트_비밀번호
 ```
 > 💡 *팁: 내 텔레그램 채팅방 ID를 모르겠다면 `python get_chat_id.py` 스크립트를 실행하여 쉽게 찾을 수 있습니다.*
 
