@@ -190,7 +190,17 @@ python main.py
 
 ---
 
-## 📁 6. 프로젝트 구조
+## 🔄 6. 서버 자동 업데이트 (OCI)
+
+GitHub `main` 브랜치에 새 커밋이 올라오면 **OCI 서버가 3분 이내에 자동으로 감지**하여 코드를 받고(`git pull`) 봇을 재시작합니다.
+
+- 동작 원리: 서버의 cron이 3분마다 `/home/ubuntu/auto_update.sh`를 실행 → 새 커밋 발견 시 `git pull` + `pip install -r requirements.txt` + `systemctl restart stock_bot`
+- 업데이트 기록 확인: 서버의 `logs/auto_update.log` 파일
+- 로컬 봇 실행 여부와 무관하게, **어디서든 push만 하면 서버에 자동 반영**됩니다.
+
+---
+
+## 📁 7. 프로젝트 구조
 
 *   `main.py`: 파이프라인 진입점 (스케줄러 및 CLI 모드 제어).
 *   `config.py`: 환경 변수 로드 및 설정 검증.
