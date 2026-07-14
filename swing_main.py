@@ -13,7 +13,7 @@ from quant_filter import run_quant_filtering
 from report_generator import generate_report
 from notifier import send_telegram_message, send_telegram_document
 from bot_listener import start_bot_listener
-from index_closing import execute_index_closing, check_and_send_crash_alerts
+from index_closing import execute_index_closing, check_and_send_crash_alerts, check_and_send_sidecar_alerts
 import psutil
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -328,6 +328,7 @@ def main():
     last_run_nxt = None
     last_crash_check = None
     last_run_health = None
+    last_sidecar_check_time = 0
     
     # Catch-up logic on startup
     now_kst = datetime.datetime.now(kst_tz)
@@ -362,6 +363,12 @@ def main():
                     if last_crash_check != current_time:
                         run_threaded(check_and_send_crash_alerts)
                         last_crash_check = current_time
+                
+                # 90-second sidecar monitor
+                current_timestamp = time.time()
+                if current_timestamp - last_sidecar_check_time >= 90:
+                    run_threaded(check_and_send_sidecar_alerts)
+                    last_sidecar_check_time = current_timestamp
             
             # 06:00, 12:00 KST: System Health Check
             if current_time in ["06:00", "12:00"] and last_run_health != current_time:

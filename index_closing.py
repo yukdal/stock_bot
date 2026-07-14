@@ -16,6 +16,12 @@ CRASH_STATE = {
     "KOSDAQ": 0
 }
 
+SIDECAR_STATE = {
+    "date": None,
+    "KOSPI": False,
+    "KOSDAQ": False
+}
+
 def fetch_realtime_index_multi_api(name):
     """
     KOSPI/KOSDAQ 실시간 지수 조회를 KIS -> Kiwoom -> Toss -> Naver 순으로 시도합니다.
@@ -290,6 +296,44 @@ def check_and_send_crash_alerts():
             
             send_telegram_message(msg, parse_mode="HTML")
             print(f"🚨 Crash alert sent for {name}: -{threshold}%")
+
+def check_and_send_sidecar_alerts():
+    """장중 90초 단위로 코스피 ±5%, 코스닥 ±6% 등락 여부를 체크하여 사이드카 자체 감지 알림 발송"""
+    global SIDECAR_STATE
+    today = datetime.date.today()
+    
+    # 매일 자정 상태 초기화
+    if SIDECAR_STATE["date"] != today:
+        SIDECAR_STATE["date"] = today
+        SIDECAR_STATE["KOSPI"] = False
+        SIDECAR_STATE["KOSDAQ"] = False
+
+    print(f"🔍 [{datetime.datetime.now().strftime('%H:%M:%S')}] Checking Sidecar Alerts...")
+    
+    for name, ticker in [("KOSPI", INDICES["KOSPI"]), ("KOSDAQ", INDICES["KOSDAQ"])]:
+        if SIDECAR_STATE[name]:
+            continue # 당일 이미 발동되었으면 스킵
+            
+        data = fetch_index_data(name, ticker)
+        if not data: continue
+        
+        pct_change = data["pct_change"]
+        threshold = 5.0 if name == "KOSPI" else 6.0
+        
+        if abs(pct_change) >= threshold:
+            # 자체 사이드카 발동 조건 충족
+            SIDECAR_STATE[name] = True
+            
+            c_close = f"{data['current_close']:,.2f}"
+            pct_chg_str = format_number(pct_change, is_pct=True)
+            current_time = datetime.datetime.now().strftime('%H:%M')
+            
+            sidecar_type = "매수" if pct_change > 0 else "매도"
+            
+            msg = f"🚨 {name} {sidecar_type} 사이드카 발동! (발동시간: {current_time}) 현재 지수: {c_close} ({pct_chg_str})"
+            
+            send_telegram_message(msg)
+            print(f"🚨 Sidecar alert sent for {name}: {pct_change}%")
 
 if __name__ == "__main__":
     execute_index_closing()
